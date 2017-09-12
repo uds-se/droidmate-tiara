@@ -1,4 +1,4 @@
-group 'saarland.cispa.testify'
+group 'saarland.cispa.testify.fesenda'
 version 'dev'
 
 buildscript {
