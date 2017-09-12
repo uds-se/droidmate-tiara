@@ -1,10 +1,16 @@
 package saarland.cispa.testify.fesenda
 
 import org.droidmate.exploration.actions.WidgetExplorationAction
+import org.droidmate.report.uniqueString
+import org.slf4j.LoggerFactory
 import saarland.cispa.testify.*
+import saarland.cispa.testify.strategies.playback.MemoryPlayback
+import saarland.cispa.testify.strategies.playback.PlaybackTrace
 import java.nio.file.Paths
 
 object Analyzer{
+    private val logger = LoggerFactory.getLogger(Analyzer::class.java)
+
     private val sensitiveApiList = ResourceManager.getResourceAsStringList("sensitiveApiList.txt")
 
     fun run(args: Array<String>){
@@ -13,11 +19,76 @@ object Analyzer{
         memoryData.forEach { memory ->
             val apk = memory.getApk()
             val appPkg = apk.packageName
-            val baseName = "${appPkg}_${System.currentTimeMillis()}"
 
             val apiWidgetSummary = getAPIWidgetSummary(memory)
-            Writer.writeAPIWidgetSummary(apiWidgetSummary, baseName)
+            Writer.writeAPIWidgetSummary(apiWidgetSummary, appPkg)
+
+            val traceData = buildTraces(memory)
+            val candidateTraces = filterTraces(traceData, apiWidgetSummary)
+            val confirmedTraces = exploreCandidateTraces(candidateTraces, args, appPkg)
+
+            logger.info(confirmedTraces.size.toString())
         }
+    }
+
+    private fun exploreCandidateTraces(candidateTraces: List<CandidateTrace>, args: Array<String>, appPackageName: String): List<CandidateTrace>{
+        candidateTraces.forEach { candidate ->
+            val playbackStrategy = MemoryPlayback.build(appPackageName, arrayListOf(candidate.trace))
+            val memoryData = saarland.cispa.testify.Main.start(args, playbackStrategy)
+
+            memoryData.forEachIndexed { index, memory ->
+                val apk = memory.getApk()
+                val appPkg = apk.packageName
+                val baseName = "${appPkg}_trace$index"
+
+                val apiWidgetSummary = getAPIWidgetSummary(memory)
+                Writer.writeAPIWidgetSummary(apiWidgetSummary, baseName)
+
+                if (apiWidgetSummary.any { p -> p.widget.uniqueString == candidate.widget.uniqueString }){
+                    candidate.trace.reset()
+                    candidate.success = true
+                }
+            }
+        }
+
+        return candidateTraces.filter { it.success }
+    }
+
+    private fun filterTraces(traces: MutableList<PlaybackTrace>, apiWidgetSummary: List<WidgetSummary>): List<CandidateTrace>{
+        val candidateTraces : MutableList<CandidateTrace> = ArrayList()
+
+        apiWidgetSummary.forEach { widget ->
+            // All traces have reset, so use the first time it started the app
+            val filteredTraces = if (widget.widgetText == "<RESET>")
+                arrayListOf(traces.first())
+            else
+                traces.filter { trace -> trace.contains(widget.widget) }
+
+            filteredTraces.forEach { newTrace ->
+                candidateTraces.add(CandidateTrace(widget.widget, newTrace))
+            }
+        }
+
+        return candidateTraces
+    }
+
+    private fun buildTraces(memory: Memory): MutableList<PlaybackTrace>{
+        val memoryRecords = memory.getRecords()
+        val traces : MutableList<PlaybackTrace> = ArrayList()
+
+        // Create traces from memory records
+        // Each trace starts with a reset
+        // Last trace ends with terminate exploration
+        for (i in 0 until memoryRecords.size) {
+            val memoryRecord = memoryRecords[i]
+
+            if (memoryRecord.type == ExplorationType.Reset)
+                traces.add(PlaybackTrace())
+
+            traces.last().add(memoryRecord.action)
+        }
+
+        return traces
     }
 
     private fun getAPIWidgetSummary(memory: Memory): List<WidgetSummary>{
@@ -42,7 +113,7 @@ object Analyzer{
     }
 
     private fun getWidgetSummary(record: IMemoryRecord, previousNonPermissionDialogAction: IMemoryRecord?): WidgetSummary? {
-        if (record.type == ExplorationType.Explore) {
+        if (record.action is WidgetExplorationAction) {
             val droidmateLogs = record.actionResult!!.deviceLogs.apiLogsOrEmpty
 
             val candidateLogs = droidmateLogs.map { p ->
@@ -70,7 +141,12 @@ object Analyzer{
                 } else
                     Reporter.getActionText(record)
                 val widget = explRecord.widget
-                val widgetSummary = WidgetSummary(widget, text, ArrayList())
+
+                val widgetSummary : WidgetSummary
+                widgetSummary = if (text == "<RESET>")
+                    WidgetSummary(text)
+                else
+                    WidgetSummary(text, widget)
 
                 logs.forEach { log ->
                     var screenshot = ""

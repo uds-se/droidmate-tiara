@@ -2,9 +2,12 @@ package saarland.cispa.testify.fesenda
 
 import org.droidmate.device.datatypes.Widget
 import org.droidmate.report.uniqueString
+import java.awt.Rectangle
 
-class WidgetSummary(val widget: Widget, val widgetText: String,
-                    val apiData: MutableList<WidgetApiData> = ArrayList()) {
+class WidgetSummary(val widgetText: String,
+                    val widget: Widget = dummyWidget,
+                    private val apiData: MutableList<WidgetApiData> = ArrayList()) {
+
     fun addApiData(api: String, screenshot: String) {
         // Insert only the first time it was found
         val exists = apiData.any { it.api == api }
@@ -37,5 +40,16 @@ class WidgetSummary(val widget: Widget, val widgetText: String,
                 .filterNot { api -> this.apiData.contains(api) }
 
         this.apiData.addAll(newApiData)
+    }
+
+    companion object {
+        private val dummyWidget = Widget("<RESET>").apply {
+            packageName = "STUB!"
+            bounds = Rectangle(1, 1, 5, 5)
+            deviceDisplayBounds = Rectangle(100, 100)
+            enabled = true
+            clickable = true
+        }
+
     }
 }
