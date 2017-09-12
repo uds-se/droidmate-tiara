@@ -1,0 +1,22 @@
+android.hardware.Camera->open
+android.location.LocationManager->addGpsStatusListener
+android.location.LocationManager->addProximityAlert
+android.location.LocationManager->getLastKnownLocation
+android.location.LocationManager->requestLocationUpdates
+android.media.AudioRecord-><init>
+android.telephony.TelephonyManager->getCellLocation
+android.telephony.TelephonyManager->getDeviceId
+android.telephony.TelephonyManager->getDeviceSoftwareVersion
+android.telephony.TelephonyManager->getLine1Number
+android.telephony.TelephonyManager->getNeighboringCellInfo
+android.telephony.TelephonyManager->getSimSerialNumber
+android.telephony.TelephonyManager->getSubscriberId
+android.telephony.TelephonyManager->getVoiceMailAlphaTag
+android.telephony.TelephonyManager->getVoiceMailNumber
+java.net.Socket->connect
+java.net.URL->openConnection
+java.net.URL->openConnection
+org.apache.http.impl.client.AbstractHttpClient->execute
+android.content.ContentResolver->query	content://call_log
+android.content.ContentResolver->query	content://com.android.contacts
+android.content.ContentResolver->query	content://sms

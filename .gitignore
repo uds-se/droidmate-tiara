@@ -1,0 +1,30 @@
+# IntelliJ project files
+.idea
+
+# Build dir
+build
+
+# Gradle
+.gradle
+gradle
+
+# Java Files #
+*.jar
+
+# Project output dir
+data*
+
+# APKs
+apks*
+
+# BoxMate dir
+temp_extracted_resources*
+output_device*
+
+# Report dir
+exec_summary
+api_summary
+
+# Temp dir
+*.apk
+run_*
