@@ -35,7 +35,7 @@ object Analyzer{
 
             evaluateConfirmedTraces(confirmedTraces, args, appPkg)
 
-            logger.info(confirmedTraces.size.toString())
+            logger.info("${confirmedTraces.size}\t${confirmedTraces.filter { it.blocked }.count()}")
         }
     }
 
@@ -102,7 +102,7 @@ object Analyzer{
             candidate.trace.reset()
             if (successCount == 3) {
                 candidate.confirmed = true
-                candidate.similarityRatio = similarityRatio
+                candidate.similarityRatio = similarityRatio / 3
             }
         }
 
