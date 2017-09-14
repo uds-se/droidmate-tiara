@@ -1,3 +1,5 @@
 package saarland.cispa.testify.fesenda
 
-data class WidgetApiData(val api: String, val screenShot: String)
+import org.droidmate.apis.IApi
+
+data class WidgetApiData(val api: IApi, val screenShot: String)

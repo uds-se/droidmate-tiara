@@ -1,22 +1,27 @@
-android.hardware.Camera->open
-android.location.LocationManager->addGpsStatusListener
-android.location.LocationManager->addProximityAlert
-android.location.LocationManager->getLastKnownLocation
-android.location.LocationManager->requestLocationUpdates
-android.media.AudioRecord-><init>
-android.telephony.TelephonyManager->getCellLocation
-android.telephony.TelephonyManager->getDeviceId
-android.telephony.TelephonyManager->getDeviceSoftwareVersion
-android.telephony.TelephonyManager->getLine1Number
-android.telephony.TelephonyManager->getNeighboringCellInfo
-android.telephony.TelephonyManager->getSimSerialNumber
-android.telephony.TelephonyManager->getSubscriberId
-android.telephony.TelephonyManager->getVoiceMailAlphaTag
-android.telephony.TelephonyManager->getVoiceMailNumber
-java.net.Socket->connect
-java.net.URL->openConnection
-java.net.URL->openConnection
-org.apache.http.impl.client.AbstractHttpClient->execute
-android.content.ContentResolver->query	content://call_log
-android.content.ContentResolver->query	content://com.android.contacts
-android.content.ContentResolver->query	content://sms
+android.hardware.Camera->open(int)
+android.location.LocationManager->addGpsStatusListener(android.location.GpsStatus.Listener)
+android.location.LocationManager->addProximityAlert(double,double,float,long,android.app.PendingIntent)
+android.location.LocationManager->getLastKnownLocation(java.lang.String)
+android.location.LocationManager->requestLocationUpdates(android.location.LocationRequest,android.location.LocationListener,android.os.Looper,android.app.PendingIntent)
+android.media.AudioRecord-><init>(int,int,int,int,int)
+android.net.wifi.WifiManager->addNetwork(android.net.wifi.WifiConfiguration)
+android.net.wifi.WifiManager->pingSupplicant()
+android.net.wifi.WifiManager->removeNetwork(int)
+android.telephony.TelephonyManager->getCellLocation()
+android.telephony.TelephonyManager->getDeviceId()
+android.telephony.TelephonyManager->getDeviceSoftwareVersion()
+android.telephony.TelephonyManager->getLine1Number()
+android.telephony.TelephonyManager->getNeighboringCellInfo()
+android.telephony.TelephonyManager->getSimSerialNumber()
+android.telephony.TelephonyManager->getSubscriberId()
+android.telephony.TelephonyManager->getVoiceMailAlphaTag()
+android.telephony.TelephonyManager->getVoiceMailNumber()
+java.net.Socket->connect(java.net.SocketAddress,int)
+java.net.URL->openConnection()
+java.net.URL->openConnection(java.net.Proxy)
+org.apache.http.impl.client.AbstractHttpClient->execute(org.apache.http.HttpHost,org.apache.http.HttpRequest,org.apache.http.protocol.HttpContext)
+android.content.ContentResolver->query(android.net.Uri,java.lang.String[],java.lang.String,java.lang.String[],java.lang.String,android.os.CancellationSignal)	content://call_log/calls
+android.content.ContentResolver->query(android.net.Uri,java.lang.String[],java.lang.String,java.lang.String[],java.lang.String,android.os.CancellationSignal)	content://com.android.contacts/contacts
+android.content.ContentResolver->query(android.net.Uri,java.lang.String[],java.lang.String,java.lang.String[],java.lang.String,android.os.CancellationSignal)	content://com.android.contacts/data
+android.content.ContentResolver->query(android.net.Uri,java.lang.String[],java.lang.String,java.lang.String[],java.lang.String,android.os.CancellationSignal)	content://com.android.contacts/profile
+android.content.ContentResolver->query(android.net.Uri,java.lang.String[],java.lang.String,java.lang.String[],java.lang.String,android.os.CancellationSignal)	content://sms

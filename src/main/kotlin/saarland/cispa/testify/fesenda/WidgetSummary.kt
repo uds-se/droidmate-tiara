@@ -1,14 +1,15 @@
 package saarland.cispa.testify.fesenda
 
+import org.droidmate.apis.IApi
 import org.droidmate.device.datatypes.Widget
 import org.droidmate.report.uniqueString
 import java.awt.Rectangle
 
 class WidgetSummary(val widgetText: String,
                     val widget: Widget = dummyWidget,
-                    private val apiData: MutableList<WidgetApiData> = ArrayList()) {
+                    val apiData: MutableList<WidgetApiData> = ArrayList()) {
 
-    fun addApiData(api: String, screenshot: String) {
+    fun addApiData(api: IApi, screenshot: String) {
         // Insert only the first time it was found
         val exists = apiData.any { it.api == api }
 

@@ -1,11 +1,17 @@
 package saarland.cispa.testify.fesenda
 
+import org.droidmate.android_sdk.AdbWrapper
+import org.droidmate.apis.IApi
+import org.droidmate.apis.IApiLogcatMessage
+import org.droidmate.configuration.ConfigurationBuilder
 import org.droidmate.exploration.actions.WidgetExplorationAction
+import org.droidmate.misc.SysCmdExecutor
 import org.droidmate.report.uniqueString
 import org.slf4j.LoggerFactory
 import saarland.cispa.testify.*
 import saarland.cispa.testify.strategies.playback.MemoryPlayback
 import saarland.cispa.testify.strategies.playback.PlaybackTrace
+import java.nio.file.FileSystems
 import java.nio.file.Paths
 
 object Analyzer{
@@ -27,14 +33,25 @@ object Analyzer{
             val candidateTraces = filterTraces(traceData, apiWidgetSummary)
             val confirmedTraces = exploreCandidateTraces(candidateTraces, args, appPkg)
 
+            evaluateConfirmedTraces(confirmedTraces, args, appPkg)
+
             logger.info(confirmedTraces.size.toString())
         }
     }
 
-    private fun exploreCandidateTraces(candidateTraces: List<CandidateTrace>, args: Array<String>, appPackageName: String): List<CandidateTrace>{
+    private fun evaluateConfirmedTraces(candidateTraces: List<CandidateTrace>, args: Array<String>, appPackageName: String){
+        logger.debug("Exploring traces with enforcement")
         candidateTraces.forEach { candidate ->
-            val playbackStrategy = MemoryPlayback.build(appPackageName, arrayListOf(candidate.trace))
-            val memoryData = saarland.cispa.testify.Main.start(args, playbackStrategy)
+            candidate.trace.reset()
+            val cfg = ConfigurationBuilder().build(args, FileSystems.getDefault())
+
+            if (cfg.deviceSerialNumber.isEmpty()) {
+                val deviceSN = AdbWrapper(cfg, SysCmdExecutor()).androidDevicesDescriptors[cfg.deviceIndex].deviceSerialNumber
+                cfg.deviceSerialNumber = deviceSN
+            }
+            val playbackStrategy = PlaybackWithEnforcement.build(appPackageName, arrayListOf(candidate.trace),
+                    candidate.widget, candidate.api, cfg)
+            val memoryData = saarland.cispa.testify.Main.start(args, playbackStrategy, cfg)
 
             memoryData.forEachIndexed { index, memory ->
                 val apk = memory.getApk()
@@ -44,28 +61,68 @@ object Analyzer{
                 val apiWidgetSummary = getAPIWidgetSummary(memory)
                 Writer.writeAPIWidgetSummary(apiWidgetSummary, baseName)
 
-                if (apiWidgetSummary.any { p -> p.widget.uniqueString == candidate.widget.uniqueString }){
-                    candidate.trace.reset()
-                    candidate.success = true
+                if (apiWidgetSummary.any { it.widget.uniqueString == candidate.widget.uniqueString }) {
+                    val similarityRatio = (playbackStrategy.first() as MemoryPlayback).getExplorationRatio(candidate.widget)
+
+                    if (similarityRatio == candidate.similarityRatio)
+                        candidate.blocked = true
                 }
             }
         }
+    }
 
-        return candidateTraces.filter { it.success }
+    private fun exploreCandidateTraces(candidateTraces: List<CandidateTrace>, args: Array<String>, appPackageName: String): List<CandidateTrace>{
+        logger.debug("Exploring traces")
+        candidateTraces.forEach { candidate ->
+            // Repeat 3x to remove "flaky traces"
+            var similarityRatio = 0.0
+            var successCount = 0
+            (0 until 3).forEach { p ->
+                logger.info("Exploring trace $p for (Api=${candidate.api.uniqueString} Widget=${candidate.widget.uniqueString})")
+                candidate.trace.reset()
+                val playbackStrategy = MemoryPlayback.build(appPackageName, arrayListOf(candidate.trace))
+                val memoryData = saarland.cispa.testify.Main.start(args, playbackStrategy)
+
+                memoryData.forEachIndexed { index, memory ->
+                    val apk = memory.getApk()
+                    val appPkg = apk.packageName
+                    val baseName = "${appPkg}_trace$index"
+
+                    val apiWidgetSummary = getAPIWidgetSummary(memory)
+                    Writer.writeAPIWidgetSummary(apiWidgetSummary, baseName)
+
+                    if (apiWidgetSummary.any { it.widget.uniqueString == candidate.widget.uniqueString }) {
+                        successCount++
+
+                        similarityRatio += (playbackStrategy.first() as MemoryPlayback).getExplorationRatio(candidate.widget)
+                    }
+                }
+            }
+
+            candidate.trace.reset()
+            if (successCount == 3) {
+                candidate.confirmed = true
+                candidate.similarityRatio = similarityRatio
+            }
+        }
+
+        return candidateTraces.filter { it.confirmed }
     }
 
     private fun filterTraces(traces: MutableList<PlaybackTrace>, apiWidgetSummary: List<WidgetSummary>): List<CandidateTrace>{
         val candidateTraces : MutableList<CandidateTrace> = ArrayList()
 
-        apiWidgetSummary.forEach { widget ->
+        apiWidgetSummary.forEach { widgetSummary ->
             // All traces have reset, so use the first time it started the app
-            val filteredTraces = if (widget.widgetText == "<RESET>")
+            val filteredTraces = if (widgetSummary.widgetText == "<RESET>")
                 arrayListOf(traces.first())
             else
-                traces.filter { trace -> trace.contains(widget.widget) }
+                traces.filter { trace -> trace.contains(widgetSummary.widget) }
 
             filteredTraces.forEach { newTrace ->
-                candidateTraces.add(CandidateTrace(widget.widget, newTrace))
+                widgetSummary.apiData.forEach { (api) ->
+                    candidateTraces.add(CandidateTrace(widgetSummary.widget, newTrace, api))
+                }
             }
         }
 
@@ -112,20 +169,26 @@ object Analyzer{
         return widgetSummaryData
     }
 
+    private fun IApiLogcatMessage.matches(monitored: String): Boolean{
+        var uri = ""
+        if (this.objectClass.contains("ContentResolver") && this.paramTypes.indexOf("android.net.Uri") != -1)
+            uri = "\t${this.parseUri()}"
+
+        val params = this.paramTypes.joinToString(separator = ",")
+
+        val thisValue = "${this.objectClass}->${this.methodName}($params)$uri"
+
+        return thisValue.contains(monitored)
+    }
+
     private fun getWidgetSummary(record: IMemoryRecord, previousNonPermissionDialogAction: IMemoryRecord?): WidgetSummary? {
         if (record.action is WidgetExplorationAction) {
-            val droidmateLogs = record.actionResult!!.deviceLogs.apiLogsOrEmpty
-
-            val candidateLogs = droidmateLogs.map { p ->
-                var uri = ""
-                if (p.objectClass.contains("ContentResolver") && p.paramTypes.indexOf("android.net.Uri") != -1)
-                    uri = "\t${p.parseUri()}"
-
-                "${p.objectClass}->${p.methodName}$uri"
-            }
+            val candidateLogs = record.actionResult!!.deviceLogs.apiLogsOrEmpty
 
             // Remove all APIs which are contained in the API list
-            val logs = candidateLogs.filter { candidate -> sensitiveApiList.any { monitored -> candidate.contains(monitored) } }
+            val logs = candidateLogs.filter { candidate ->
+                sensitiveApiList.any { monitored -> candidate.matches(monitored) }
+            }
 
             if (logs.isNotEmpty()) {
                 val text: String
@@ -152,7 +215,7 @@ object Analyzer{
                     var screenshot = ""
                     if (record.actionResult!!.screenshot != null)
                         screenshot = Paths.get(record.actionResult!!.screenshot).fileName.toString()
-                    widgetSummary.addApiData(log, screenshot)
+                    widgetSummary.addApiData(log as IApi, screenshot)
                 }
 
                 return widgetSummary
