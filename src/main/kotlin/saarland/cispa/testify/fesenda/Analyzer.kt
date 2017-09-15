@@ -31,11 +31,13 @@ object Analyzer{
 
             val traceData = buildTraces(memory)
             val candidateTraces = filterTraces(traceData, apiWidgetSummary)
-            val confirmedTraces = exploreCandidateTraces(candidateTraces, args, appPkg)
 
-            evaluateConfirmedTraces(confirmedTraces, args, appPkg)
+            exploreCandidateTraces(candidateTraces, args, appPkg)
+            evaluateConfirmedTraces(candidateTraces, args, appPkg)
 
-            logger.info("${confirmedTraces.size}\t${confirmedTraces.filter { it.blocked }.count()}")
+            val confirmed = candidateTraces.filter { it.confirmed }.count()
+            val blocked = candidateTraces.filter { it.blocked }.count()
+            logger.info("${traceData.size}\t${candidateTraces.size}\t$confirmed\t$blocked")
         }
     }
 
@@ -71,7 +73,7 @@ object Analyzer{
         }
     }
 
-    private fun exploreCandidateTraces(candidateTraces: List<CandidateTrace>, args: Array<String>, appPackageName: String): List<CandidateTrace>{
+    private fun exploreCandidateTraces(candidateTraces: List<CandidateTrace>, args: Array<String>, appPackageName: String){
         logger.debug("Exploring traces")
         candidateTraces.forEach { candidate ->
             // Repeat 3x to remove "flaky traces"
@@ -105,8 +107,6 @@ object Analyzer{
                 candidate.similarityRatio = similarityRatio / 3
             }
         }
-
-        return candidateTraces.filter { it.confirmed }
     }
 
     private fun filterTraces(traces: MutableList<PlaybackTrace>, apiWidgetSummary: List<WidgetSummary>): List<CandidateTrace>{
