@@ -4,6 +4,7 @@ import org.droidmate.android_sdk.AdbWrapper
 import org.droidmate.apis.IApi
 import org.droidmate.apis.IApiLogcatMessage
 import org.droidmate.configuration.ConfigurationBuilder
+import org.droidmate.device.datatypes.Widget
 import org.droidmate.exploration.actions.WidgetExplorationAction
 import org.droidmate.misc.SysCmdExecutor
 import org.droidmate.report.uniqueString
@@ -192,18 +193,26 @@ object Analyzer{
 
             if (logs.isNotEmpty()) {
                 val text: String
+                val widget : Widget
 
                 val explRecord = record.action as WidgetExplorationAction
                 // When it's runtime permission, the action action happened before therefore must look for it
                 // moreover, if no previous action was found it happened on a reset
-                text = if (explRecord.isEndorseRuntimePermission) {
-                    if (previousNonPermissionDialogAction != null)
-                        Reporter.getActionText(previousNonPermissionDialogAction)
-                    else
-                        "<RESET>"
-                } else
-                    Reporter.getActionText(record)
-                val widget = explRecord.widget
+                if (explRecord.isEndorseRuntimePermission) {
+                    if (previousNonPermissionDialogAction != null) {
+                        val tmpWidget = Reporter.getActionWidget(previousNonPermissionDialogAction)
+                        text = Reporter.getWidgetText(tmpWidget)
+                        widget = tmpWidget ?: explRecord.widget
+                    }
+                    else {
+                        text = "<RESET>"
+                        widget = explRecord.widget
+                    }
+                } else {
+                    val tmpWidget = Reporter.getActionWidget(record)
+                    text = Reporter.getWidgetText(tmpWidget)
+                    widget = explRecord.widget
+                }
 
                 val widgetSummary : WidgetSummary
                 widgetSummary = if (text == "<RESET>")
