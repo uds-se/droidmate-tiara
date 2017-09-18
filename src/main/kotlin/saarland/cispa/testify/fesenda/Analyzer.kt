@@ -38,7 +38,7 @@ object Analyzer{
 
             val confirmed = candidateTraces.filter { it.confirmed }.count()
             val blocked = candidateTraces.filter { it.blocked }.count()
-            logger.info("${traceData.size}\t${candidateTraces.size}\t$confirmed\t$blocked")
+            logger.info("Traces: ${traceData.size}\tRelevant: ${candidateTraces.size}\tConfirmed: $confirmed\tBlocked $blocked")
         }
     }
 
@@ -133,6 +133,7 @@ object Analyzer{
     private fun buildTraces(memory: Memory): MutableList<PlaybackTrace>{
         val memoryRecords = memory.getRecords()
         val traces : MutableList<PlaybackTrace> = ArrayList()
+        val packageName = memory.getApk().packageName
 
         // Create traces from memory records
         // Each trace starts with a reset
@@ -143,7 +144,7 @@ object Analyzer{
             if (memoryRecord.type == ExplorationType.Reset)
                 traces.add(PlaybackTrace())
 
-            traces.last().add(memoryRecord.action)
+            traces.last().add(memoryRecord.action, memoryRecord.state, packageName)
         }
 
         return traces
