@@ -11,6 +11,7 @@ import org.droidmate.report.uniqueString
 import org.slf4j.LoggerFactory
 import saarland.cispa.testify.*
 import saarland.cispa.testify.strategies.login.LoginWithFacebook
+import saarland.cispa.testify.strategies.login.LoginWithGoogle
 import saarland.cispa.testify.strategies.playback.MemoryPlayback
 import saarland.cispa.testify.strategies.playback.PlaybackTrace
 import java.nio.file.FileSystems
@@ -24,6 +25,7 @@ object Analyzer{
     private fun getAdditionalExtraStrategies(): List<ISelectableExplorationStrategy>{
         val strategies : MutableList<ISelectableExplorationStrategy> = ArrayList()
         strategies.add(LoginWithFacebook.build())
+        strategies.add(LoginWithGoogle.build())
 
         return strategies
     }
