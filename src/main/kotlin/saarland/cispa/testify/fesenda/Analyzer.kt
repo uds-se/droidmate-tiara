@@ -10,6 +10,7 @@ import org.droidmate.misc.SysCmdExecutor
 import org.droidmate.report.uniqueString
 import org.slf4j.LoggerFactory
 import saarland.cispa.testify.*
+import saarland.cispa.testify.strategies.login.LoginWithFacebook
 import saarland.cispa.testify.strategies.playback.MemoryPlayback
 import saarland.cispa.testify.strategies.playback.PlaybackTrace
 import java.nio.file.FileSystems
@@ -20,26 +21,36 @@ object Analyzer{
 
     private val sensitiveApiList = ResourceManager.getResourceAsStringList("sensitiveApiList.txt")
 
+    private fun getAdditionalExtraStrategies(): List<ISelectableExplorationStrategy>{
+        val strategies : MutableList<ISelectableExplorationStrategy> = ArrayList()
+        strategies.add(LoginWithFacebook.build())
+
+        return strategies
+    }
+
+    private fun processMemory(memory: Memory, args: Array<String>){
+        val apk = memory.getApk()
+        val appPkg = apk.packageName
+
+        val apiWidgetSummary = getAPIWidgetSummary(memory)
+        Writer.writeAPIWidgetSummary(apiWidgetSummary, appPkg)
+
+        val traceData = buildTraces(memory)
+        val candidateTraces = filterTraces(traceData, apiWidgetSummary)
+
+        exploreCandidateTraces(candidateTraces, args, appPkg)
+        evaluateConfirmedTraces(candidateTraces, args, appPkg)
+
+        val confirmed = candidateTraces.filter { it.confirmed }.count()
+        val blocked = candidateTraces.filter { it.blocked }.count()
+        logger.info("Traces: ${traceData.size}\tRelevant: ${candidateTraces.size}\tConfirmed: $confirmed\tBlocked $blocked")
+    }
+
     fun run(args: Array<String>){
-        val memoryData = saarland.cispa.testify.Main.start(args, ArrayList())
+        val additionalStrategies = getAdditionalExtraStrategies()
+        val memoryData = saarland.cispa.testify.Main.start(args, additionalStrategies)
 
-        memoryData.forEach { memory ->
-            val apk = memory.getApk()
-            val appPkg = apk.packageName
-
-            val apiWidgetSummary = getAPIWidgetSummary(memory)
-            Writer.writeAPIWidgetSummary(apiWidgetSummary, appPkg)
-
-            val traceData = buildTraces(memory)
-            val candidateTraces = filterTraces(traceData, apiWidgetSummary)
-
-            exploreCandidateTraces(candidateTraces, args, appPkg)
-            evaluateConfirmedTraces(candidateTraces, args, appPkg)
-
-            val confirmed = candidateTraces.filter { it.confirmed }.count()
-            val blocked = candidateTraces.filter { it.blocked }.count()
-            logger.info("Traces: ${traceData.size}\tRelevant: ${candidateTraces.size}\tConfirmed: $confirmed\tBlocked $blocked")
-        }
+        memoryData.forEach { processMemory(it, args) }
     }
 
     private fun evaluateConfirmedTraces(candidateTraces: List<CandidateTrace>, args: Array<String>, appPackageName: String){
