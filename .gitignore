@@ -28,3 +28,6 @@ api_summary
 # Temp dir
 *.apk
 run_*
+
+# Private information
+facebookLogin.config
