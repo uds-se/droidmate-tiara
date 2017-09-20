@@ -45,7 +45,7 @@ object Analyzer{
 
         val confirmed = candidateTraces.filter { it.confirmed }.count()
         val blocked = candidateTraces.filter { it.blocked }.count()
-        logger.info("Traces: ${traceData.size}\tRelevant: ${candidateTraces.size}\tConfirmed: $confirmed\tBlocked $blocked")
+        logger.info("Unique traces: ${traceData.size}\tRelevant: ${candidateTraces.size}\tConfirmed: $confirmed\tBlocked $blocked")
     }
 
     fun run(args: Array<String>){
@@ -57,7 +57,9 @@ object Analyzer{
 
     private fun evaluateConfirmedTraces(candidateTraces: List<CandidateTrace>, args: Array<String>, appPackageName: String){
         logger.debug("Exploring traces with enforcement")
-        candidateTraces.forEach { candidate ->
+        candidateTraces
+                .filter { it.confirmed }
+                .forEach { candidate ->
             candidate.trace.reset()
             val cfg = ConfigurationBuilder().build(args, FileSystems.getDefault())
 
