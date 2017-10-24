@@ -27,8 +27,6 @@ object Analyzer{
     fun run(args: Array<String>){
         val additionalStrategies = getAdditionalExtraStrategies()
         val cfg = ConfigurationBuilder().build(args, FileSystems.getDefault())
-        cfg.actionsLimit = 10
-        cfg.resetEveryNthExplorationForward = 10
         val expCfg = ExperimentConfiguration(cfg, ArrayList())
         val memoryData = saarland.cispa.testify.Main.start(args, additionalStrategies, cfg, expCfg)
 
