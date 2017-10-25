@@ -16,6 +16,7 @@ import saarland.cispa.testify.strategies.playback.MemoryPlayback
 import saarland.cispa.testify.strategies.playback.PlaybackTrace
 import java.io.IOException
 import java.nio.file.FileSystems
+import java.nio.file.Files
 import java.nio.file.Paths
 
 object Analyzer{
@@ -61,15 +62,27 @@ object Analyzer{
         val confirmed = candidateTraces.filter { it.confirmed }
         val blocked = candidateTraces.filter { it.blocked }
         val partial = candidateTraces.filter { it.partiallyBlocked }
-        logger.info("Unique traces: ${traceData.size}\tRelevant: ${candidateTraces.size}\tConfirmed: ${confirmed.count()}\tBlocked ${blocked.count()}\tPartially Blocked ${partial.count()}")
-        logger.info("Blocked Sub-traces:")
-        blocked.forEach { logger.info("${it.api}\t${it.widget}") }
-        logger.info("Partially Blocked Sub-traces:")
-        partial.forEach { logger.info("${it.api}\t${it.widget}") }
-        logger.info("Not Blocked Sub-traces:")
-        confirmed.filterNot { it.blocked || it.partiallyBlocked }.forEach { logger.info("${it.api.uniqueString}\t${it.widget}") }
-        logger.info("Not confirmed Sub-traces:")
-        candidateTraces.filterNot { it.confirmed }.forEach { logger.info("${it.api}\t${it.widget}") }
+
+        val sb = StringBuilder()
+        sb.appendln("Unique traces: ${traceData.size}\tRelevant: ${candidateTraces.size}\tConfirmed: ${confirmed.count()}\tBlocked ${blocked.count()}\tPartially Blocked ${partial.count()}")
+        sb.appendln("Blocked Sub-traces:")
+        blocked.forEach { sb.appendln("${it.api}\t${it.widget}") }
+        sb.appendln("Partially Blocked Sub-traces:")
+        partial.forEach { sb.appendln("${it.api}\t${it.widget}") }
+        sb.appendln("Not Blocked Sub-traces:")
+        confirmed.filterNot { it.blocked || it.partiallyBlocked }.forEach { sb.appendln("${it.api.uniqueString}\t${it.widget}\t${
+            apiWidgetSummary.first { p -> p.widget.uniqueString == it.widget.uniqueString }.apiData.first().screenShot}") }
+        sb.appendln("Not confirmed Sub-traces:")
+        candidateTraces.filterNot { it.confirmed }.forEach { sb.appendln("${it.api}\t${it.widget}") }
+
+        sb.toString().split("\n").forEach { logger.info(it) }
+        try{
+            val expReport = Paths.get("exec_summary").resolve("api_trace_analysis_report.txt")
+            Files.write(expReport, sb.toString().toByteArray())
+        }
+        catch(e: IOException){
+            logger.error("Failed to write log file!", e)
+        }
     }
 
     private fun serializeTraces(candidateTraces: List<CandidateTrace>, suffix: String, appPackageName: String,
