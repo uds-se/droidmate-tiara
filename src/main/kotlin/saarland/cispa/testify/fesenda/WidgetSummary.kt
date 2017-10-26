@@ -4,8 +4,10 @@ import org.droidmate.apis.IApi
 import org.droidmate.device.datatypes.Widget
 import org.droidmate.report.uniqueString
 import java.awt.Rectangle
+import java.net.URI
 
 class WidgetSummary(val widgetText: String,
+                    val screenshot: URI?,
                     val widget: Widget = dummyWidget,
                     val apiData: MutableList<WidgetApiData> = ArrayList()) {
 

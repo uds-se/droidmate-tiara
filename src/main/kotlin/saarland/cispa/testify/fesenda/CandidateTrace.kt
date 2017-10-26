@@ -10,9 +10,10 @@ import java.io.FileInputStream
 import java.io.FileOutputStream
 import java.io.IOException
 import java.io.Serializable
+import java.net.URI
 import java.nio.file.Path
 
-data class CandidateTrace(val widget: Widget, val trace: PlaybackTrace, val api: IApi): Serializable{
+data class CandidateTrace(val widget: Widget, val trace: PlaybackTrace, val api: IApi, var screenshot : URI?): Serializable{
     var confirmed = false
     var blocked = false
     var partiallyBlocked = false

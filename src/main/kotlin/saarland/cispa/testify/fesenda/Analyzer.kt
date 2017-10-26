@@ -66,14 +66,13 @@ object Analyzer{
         val sb = StringBuilder()
         sb.appendln("Unique traces: ${traceData.size}\tRelevant: ${candidateTraces.size}\tConfirmed: ${confirmed.count()}\tBlocked ${blocked.count()}\tPartially Blocked ${partial.count()}")
         sb.appendln("Blocked Sub-traces:")
-        blocked.forEach { sb.appendln("${it.api}\t${it.widget}") }
+        blocked.forEach { sb.appendln("${it.api}\t${it.widget}\t${it.screenshot}") }
         sb.appendln("Partially Blocked Sub-traces:")
-        partial.forEach { sb.appendln("${it.api}\t${it.widget}") }
+        partial.forEach { sb.appendln("${it.api}\t${it.widget}\t${it.screenshot}") }
         sb.appendln("Not Blocked Sub-traces:")
-        confirmed.filterNot { it.blocked || it.partiallyBlocked }.forEach { sb.appendln("${it.api.uniqueString}\t${it.widget}\t${
-            apiWidgetSummary.first { p -> p.widget.uniqueString == it.widget.uniqueString }.apiData.first().screenShot}") }
+        confirmed.filterNot { it.blocked || it.partiallyBlocked }.forEach { sb.appendln("${it.api.uniqueString}\t${it.widget}\t${it.screenshot}") }
         sb.appendln("Not confirmed Sub-traces:")
-        candidateTraces.filterNot { it.confirmed }.forEach { sb.appendln("${it.api}\t${it.widget}") }
+        candidateTraces.filterNot { it.confirmed }.forEach { sb.appendln("${it.api}\t${it.widget}\t${it.screenshot}") }
 
         sb.toString().split("\n").forEach { logger.info(it) }
         try{
@@ -190,7 +189,7 @@ object Analyzer{
 
             filteredTraces.forEach { newTrace ->
                 widgetSummary.apiData.forEach { (api) ->
-                    candidateTraces.add(CandidateTrace(widgetSummary.widget, newTrace, api))
+                    candidateTraces.add(CandidateTrace(widgetSummary.widget, newTrace, api, widgetSummary.screenshot))
                 }
             }
         }
@@ -283,11 +282,13 @@ object Analyzer{
                     widget = explRecord.widget
                 }
 
+                val actionScreenshot = previousNonPermissionDialogAction?.actionResult?.screenshot
+
                 val widgetSummary : WidgetSummary
                 widgetSummary = if (text == "<RESET>")
-                    WidgetSummary(text)
+                    WidgetSummary(text, actionScreenshot)
                 else
-                    WidgetSummary(text, widget)
+                    WidgetSummary(text, actionScreenshot, widget)
 
                 logs.forEach { log ->
                     var screenshot = ""
