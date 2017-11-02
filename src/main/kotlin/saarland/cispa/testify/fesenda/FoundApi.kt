@@ -1,10 +1,11 @@
 package saarland.cispa.testify.fesenda
 
 import org.droidmate.apis.IApi
+import java.nio.file.Path
 
-data class WidgetApiData(val api: IApi, val screenShot: String){
+data class FoundApi(val api: IApi, val screenshot: Path?){
     override fun equals(other: Any?): Boolean {
-        if ((other == null) || (other !is WidgetApiData))
+        if ((other == null) || (other !is FoundApi))
             return false
 
         return this.api.uniqueString == other.api.uniqueString
@@ -12,7 +13,7 @@ data class WidgetApiData(val api: IApi, val screenShot: String){
 
     override fun hashCode(): Int {
         var result = api.hashCode()
-        result = 31 * result + screenShot.hashCode()
+        result = 31 * result + if (screenshot != null) screenshot.hashCode() else 0
         return result
     }
 }

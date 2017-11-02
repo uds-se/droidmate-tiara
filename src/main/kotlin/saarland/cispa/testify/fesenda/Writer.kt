@@ -7,7 +7,7 @@ import java.nio.file.Files
 object Writer{
     private val logger = LoggerFactory.getLogger(Writer::class.java)
 
-    fun writeAPIWidgetSummary(widgetSummaryData: List<WidgetSummary>, reportName: String) {
+    fun writeAPIWidgetSummary(widgetSummaryData: List<ExploredWidget>, reportName: String) {
         logger.info("Writing API widget summary .........")
         val summaryDir = Reporter.initialize()
 

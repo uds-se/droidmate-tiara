@@ -2,6 +2,7 @@ package saarland.cispa.testify.fesenda
 
 import org.droidmate.apis.IApi
 import org.droidmate.device.datatypes.Widget
+import org.droidmate.report.uniqueString
 import org.nustaq.serialization.FSTObjectInput
 import org.nustaq.serialization.FSTObjectOutput
 import org.slf4j.LoggerFactory
@@ -14,10 +15,11 @@ import java.net.URI
 import java.nio.file.Path
 
 data class CandidateTrace(val widget: Widget, val trace: PlaybackTrace, val api: IApi, var screenshot : URI?): Serializable{
-    var confirmed = false
-    var blocked = false
-    var partiallyBlocked = false
-    var similarityRatio = 0.0
+    var confirmRatio = 0.0
+    var blockedRatio = 0.0
+    var seenRatio = 0.0
+    val seenWidgets : MutableList<Widget> = ArrayList()
+    val seenWidgetsBlock : MutableList<Widget> = ArrayList()
 
     @Throws(IOException::class)
     fun serialize(outPath: Path) {
@@ -29,6 +31,10 @@ data class CandidateTrace(val widget: Widget, val trace: PlaybackTrace, val api:
         out.close()
         fileOut.close()
         logger.info("Candidate trace successfully serialized to $outPath")
+    }
+
+    override fun toString(): String {
+        return "${this.blockedRatio}\t${this.confirmRatio}\t${this.widget.uniqueString}\t${this.api}\t${this.screenshot}"
     }
 
     companion object {

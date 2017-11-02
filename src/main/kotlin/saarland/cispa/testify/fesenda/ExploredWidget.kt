@@ -4,25 +4,24 @@ import org.droidmate.apis.IApi
 import org.droidmate.device.datatypes.Widget
 import org.droidmate.report.uniqueString
 import java.awt.Rectangle
-import java.net.URI
+import java.nio.file.Path
 
-class WidgetSummary(val widgetText: String,
-                    val screenshot: URI?,
-                    val widget: Widget = dummyWidget,
-                    val apiData: MutableList<WidgetApiData> = ArrayList()) {
+class ExploredWidget(val widgetText: String,
+                     val widget: Widget = dummyWidget,
+                     val foundApis: MutableList<FoundApi> = ArrayList()) {
 
-    fun addApiData(api: IApi, screenshot: String) {
+    fun addFoundAPI(api: IApi, screenshot: Path?) {
         // Insert only the first time it was found
-        val exists = apiData.any { it.api == api }
+        val exists = foundApis.any { it.api == api }
 
         if (exists)
             return
 
-        apiData.add(WidgetApiData(api, screenshot))
+        foundApis.add(FoundApi(api, screenshot))
     }
 
     override fun toString(): String {
-        return apiData.joinToString(separator = "") { data -> "$widgetText\t${data.api}\t${data.screenShot}\t$widget\n" }
+        return foundApis.joinToString(separator = "") { data -> "$widgetText\t${data.api}\t${data.screenshot}\t$widget\n" }
     }
 
     override fun hashCode(): Int {
@@ -30,19 +29,19 @@ class WidgetSummary(val widgetText: String,
     }
 
     override fun equals(other: Any?): Boolean {
-        if ((other == null) || (other !is WidgetSummary))
+        if ((other == null) || (other !is ExploredWidget))
             return false
 
         return this.widget.uniqueString == other.widget.uniqueString
     }
 
-    fun merge(widgetSummary: WidgetSummary){
-        assert(widgetSummary.widget.uniqueString == this.widget.uniqueString)
+    fun merge(exploredWidget: ExploredWidget){
+        assert(exploredWidget.widget.uniqueString == this.widget.uniqueString)
 
-        val newApiData = widgetSummary.apiData
-                .filterNot { api -> this.apiData.contains(api) }
+        val newApiData = exploredWidget.foundApis
+                .filterNot { api -> this.foundApis.contains(api) }
 
-        this.apiData.addAll(newApiData)
+        this.foundApis.addAll(newApiData)
     }
 
     companion object {
