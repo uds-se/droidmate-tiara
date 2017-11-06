@@ -6,8 +6,7 @@ import org.droidmate.report.uniqueString
 import java.awt.Rectangle
 import java.nio.file.Path
 
-class ExploredWidget(val widgetText: String,
-                     val widget: Widget = dummyWidget,
+class ExploredWidget(val widget: Widget = dummyWidget,
                      val foundApis: MutableList<FoundApi> = ArrayList()) {
 
     fun addFoundAPI(api: IApi, screenshot: Path?) {
@@ -21,7 +20,9 @@ class ExploredWidget(val widgetText: String,
     }
 
     override fun toString(): String {
-        return foundApis.joinToString(separator = "") { data -> "$widgetText\t${data.api}\t${data.screenshot}\t$widget\n" }
+        return foundApis.joinToString(separator = "") { data ->
+            "${widget.uniqueString}\t${data.api.uniqueString}\t${data.screenshot}\t$widget\n"
+        }
     }
 
     override fun hashCode(): Int {
@@ -45,7 +46,7 @@ class ExploredWidget(val widgetText: String,
     }
 
     companion object {
-        private val dummyWidget = Widget("<RESET>").apply {
+        val dummyWidget = Widget("<RESET>").apply {
             packageName = "STUB!"
             bounds = Rectangle(1, 1, 5, 5)
             deviceDisplayBounds = Rectangle(100, 100)
