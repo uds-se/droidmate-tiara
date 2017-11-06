@@ -56,6 +56,10 @@ class PlaybackWithEnforcement private constructor(packageName: String, newTraces
     }
 
     private fun enforcePolicies(action: ExplorationAction){
+        // If the action is runtime permission, the current policy should continue to be used
+        if (action.isEndorseRuntimePermission)
+            return
+
         // Enforcement on reset
         if ( ((action is ResetAppExplorationAction) && (widget.id == "<RESET>")) ||
         ((action is WidgetExplorationAction) && (widget.uniqueString == action.widget.uniqueString))){
