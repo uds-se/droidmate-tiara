@@ -15,7 +15,6 @@ import saarland.cispa.testify.strategies.playback.MemoryPlayback
 import saarland.cispa.testify.strategies.playback.PlaybackTrace
 import java.io.IOException
 import java.nio.file.FileSystems
-import java.nio.file.Files
 import java.nio.file.Paths
 
 object Analyzer{
@@ -66,22 +65,22 @@ object Analyzer{
     }
 
     private fun getAdditionalExtraStrategies(): List<ISelectableExplorationStrategy>{
-        val strategies : MutableList<ISelectableExplorationStrategy> = ArrayList()
+        //val strategies : MutableList<ISelectableExplorationStrategy> = ArrayList()
         //strategies.add(LoginWithFacebook.build())
         //strategies.add(LoginWithGoogle.build())
-
-        return strategies
+        //return strategies
+        return ArrayList()
     }
 
-    private fun processMemory(memory: Memory, args: Array<String>, expCfg: ExperimentConfiguration){
+    private fun processMemory(memory: Memory, args: Array<String>, expCfg: ExperimentConfiguration) {
         val apk = memory.getApk()
         val appPkg = apk.packageName
 
-        val apiWidgetSummary = getAPIsPerWidget(memory)
-        Writer.writeAPIWidgetSummary(apiWidgetSummary, appPkg)
+        val widgetsApiList = memory.getApisPerWidget()
+        Writer.writeWidgetApisList(widgetsApiList, appPkg)
 
-        val traceData = buildPlaybackTraces(memory)
-        val candidateTraces = traceData.createCandidateTraces(apiWidgetSummary)
+        val traceData = memory.buildPlaybackTraces()
+        val candidateTraces = traceData.createCandidateTraces(widgetsApiList)
         candidateTraces.serialize("filtered", appPkg, expCfg)
 
         confirmCandidateTraces(candidateTraces, args, appPkg)
@@ -90,31 +89,7 @@ object Analyzer{
         evaluateConfirmedTraces(candidateTraces, args, appPkg)
         candidateTraces.serialize("evaluated", appPkg, expCfg)
 
-        val confirmed = candidateTraces.filter { it.confirmRatio == 1.0 }
-        val blocked = candidateTraces.filter { it.blockedRatio == 1.0 && it.seenRatio == 1.0 }
-        val partial = candidateTraces.filter { it.blockedRatio == 1.0 && it.seenRatio < 1.0  }
-        val notBlocked = candidateTraces.filter { it.confirmRatio == 1.0 && it.blockedRatio < 1.0 }
-        val notConfirmed = candidateTraces.filter { it.confirmRatio < 1.0 }
-
-        val sb = StringBuilder()
-        sb.appendln("Unique traces: ${traceData.size}\tRelevant: ${candidateTraces.size}\tConfirmed: ${confirmed.count()}\tBlocked ${blocked.count()}\tPartially Blocked ${partial.count()}")
-        sb.appendln("Blocked Sub-traces:")
-        blocked.forEach { sb.appendln(it.toString()) }
-        sb.appendln("Partially Blocked Sub-traces:")
-        partial.forEach { sb.appendln(it.toString()) }
-        sb.appendln("Not Blocked Sub-traces:")
-        notBlocked.forEach { sb.appendln(it.toString()) }
-        sb.appendln("Not confirmed Sub-traces:")
-        notConfirmed.forEach { sb.appendln(it.toString()) }
-
-        sb.toString().split("\n").forEach { logger.info(it) }
-        try{
-            val expReport = Paths.get("exec_summary").resolve("api_trace_analysis_report.txt")
-            Files.write(expReport, sb.toString().toByteArray())
-        }
-        catch(e: IOException){
-            logger.error("Failed to write log file!", e)
-        }
+        Writer.writeReports(candidateTraces, traceData)
     }
 
     private fun List<CandidateTrace>.serialize(suffix: String, appPackageName: String,
@@ -173,10 +148,10 @@ object Analyzer{
                 val appPkg = apk.packageName
                 val baseName = "${appPkg}_trace$index"
 
-                val apiWidgetSummary = getAPIsPerWidget(memory)
-                Writer.writeAPIWidgetSummary(apiWidgetSummary, baseName)
+                val widgetApiList = memory.getApisPerWidget()
+                Writer.writeWidgetApisList(widgetApiList, baseName)
 
-                if (apiWidgetSummary.any { it.widget.uniqueString == candidate.widget.uniqueString }) {
+                if (widgetApiList.any { it.widget.uniqueString == candidate.widget.uniqueString }) {
                     val executedPlayback = playbackStrategy.first() as MemoryPlayback
                     val similarityRatio = executedPlayback.getExplorationRatio(candidate.widget)
 
@@ -185,7 +160,7 @@ object Analyzer{
                     candidate.seenWidgetsBlock.addAll(seenWidgetsTrace)
 
                     val unseenWidgets = candidate.seenWidgets.filterNot { c -> seenWidgetsTrace.any { t -> c.uniqueString == t.uniqueString } }
-                    val seenWidgetsRatio = unseenWidgets.size / candidate.seenWidgets.size.toDouble()
+                    val seenWidgetsRatio = 1 - (unseenWidgets.size / candidate.seenWidgets.size.toDouble())
                     candidate.seenRatio = seenWidgetsRatio
                 }
             }
@@ -197,7 +172,7 @@ object Analyzer{
      */
     private fun confirmCandidateTraces(candidateTraces: List<CandidateTrace>, args: Array<String>, appPackageName: String){
         logger.debug("Exploring traces")
-        candidateTraces.subList(2,3).forEach { candidate ->
+        candidateTraces.forEach { candidate ->
             // Repeat 3x to remove "flaky traces"
             var similarityRatio = 0.0
             var successCount = 0
@@ -213,8 +188,8 @@ object Analyzer{
                     val appPkg = apk.packageName
                     val baseName = "${appPkg}_trace$index"
 
-                    val apiWidgetSummary = getAPIsPerWidget(memory)
-                    Writer.writeAPIWidgetSummary(apiWidgetSummary, baseName)
+                    val apiWidgetSummary = memory.getApisPerWidget()
+                    Writer.writeWidgetApisList(apiWidgetSummary, baseName)
 
                     if (apiWidgetSummary.any { it.widget.uniqueString == candidate.widget.uniqueString }) {
                         successCount++
@@ -240,19 +215,20 @@ object Analyzer{
      * Filter all traces which contain a relevant API. Creates a trace for each API and widget to
      * allow to be independently evaluated
       */
-    private fun MutableList<PlaybackTrace>.createCandidateTraces(apiWidgetSummary: List<ExploredWidget>): List<CandidateTrace>{
+    private fun MutableList<PlaybackTrace>.createCandidateTraces(exploredWidgetList: List<ExploredWidget>): List<CandidateTrace>{
         val candidateTraces : MutableList<CandidateTrace> = ArrayList()
 
-        apiWidgetSummary.forEach { widgetSummary ->
+        exploredWidgetList.forEach { exploredWidget ->
             // All traces have reset, so use the first time it started the app
-            val filteredTraces = if (widgetSummary.widgetText == "<RESET>")
+            val tracesWithWidget = if (exploredWidget.widget == ExploredWidget.dummyWidget)
                 arrayListOf(this.first())
             else
-                this.filter { trace -> trace.contains(widgetSummary.widget) }
+                this.filter { trace -> trace.contains(exploredWidget.widget) }
 
-            filteredTraces.forEach { newTrace ->
-                widgetSummary.foundApis.forEach { data ->
-                    candidateTraces.add(CandidateTrace(widgetSummary.widget, newTrace, data.api, data.screenshot?.toUri()))
+            exploredWidget.foundApis.forEach { data ->
+                tracesWithWidget.forEach { playbackTrace ->
+                    val newTrace = CandidateTrace(exploredWidget.widget, playbackTrace, data.api, data.screenshot?.toUri())
+                    candidateTraces.add(newTrace)
                 }
             }
         }
@@ -260,10 +236,10 @@ object Analyzer{
         return candidateTraces
     }
 
-    private fun buildPlaybackTraces(memory: Memory): MutableList<PlaybackTrace>{
-        val memoryRecords = memory.getRecords()
+    private fun Memory.buildPlaybackTraces(): MutableList<PlaybackTrace>{
+        val memoryRecords = this.getRecords()
         val traces : MutableList<PlaybackTrace> = ArrayList()
-        val packageName = memory.getApk().packageName
+        val packageName = this.getApk().packageName
 
         // Create traces from memory records
         // Each trace starts with a reset
@@ -280,25 +256,25 @@ object Analyzer{
         return traces
     }
 
-    private fun getAPIsPerWidget(memory: Memory): List<ExploredWidget>{
-        val widgetSummaryData: MutableList<ExploredWidget> = ArrayList()
-        val history = memory.getRecords()
-        history.forEachIndexed { index, record ->
-            val previousNonPermissionDialogAction = getPreviousNonPermissionDialogAction(history, index)
-
-            val newWidgetSummary = getWidgetSummary(record, previousNonPermissionDialogAction)
+    private fun Memory.getApisPerWidget(): List<ExploredWidget>{
+        val exploredWidgetsList: MutableList<ExploredWidget> = ArrayList()
+        val history = this.getRecords()
+        history.indices.forEach { index ->
+            val newWidgetSummary = getExploredWidget(history, index)
 
             if (newWidgetSummary != null){
-                val currWidgetSummary = widgetSummaryData.firstOrNull { it == newWidgetSummary }
+                val currWidgetSummary = exploredWidgetsList.firstOrNull { it == newWidgetSummary }
 
+                // New widget, insert
                 if (currWidgetSummary == null)
-                    widgetSummaryData.add(newWidgetSummary)
+                    exploredWidgetsList.add(newWidgetSummary)
+                // Widget already exists, merge
                 else
                     currWidgetSummary.merge(newWidgetSummary)
             }
         }
 
-        return widgetSummaryData
+        return exploredWidgetsList
     }
 
     private fun IApiLogcatMessage.matches(monitored: String): Boolean{
@@ -313,60 +289,56 @@ object Analyzer{
         return thisValue.contains(monitored)
     }
 
-    private fun getWidgetSummary(record: IMemoryRecord, previousNonPermissionDialogAction: IMemoryRecord?): ExploredWidget? {
-        if (record.action is WidgetExplorationAction) {
-            val candidateLogs = record.actionResult!!.deviceLogs.apiLogsOrEmpty
+    private fun getExploredWidget(history: List<IMemoryRecord>, index: Int): ExploredWidget? {
+        val record = history[index]
 
-            // Remove all APIs which are contained in the API list
-            val sensitiveLogs = candidateLogs.filter { candidate ->
-                sensitiveApiList.any { monitored -> candidate.matches(monitored) }
-            }
+        val candidateLogs = record.actionResult!!.deviceLogs.apiLogsOrEmpty
+        // Remove all non monitored APIs
+        val sensitiveLogs = candidateLogs.filter { candidate -> sensitiveApiList.any { monitored -> candidate.matches(monitored) } }
 
-            if (sensitiveLogs.isNotEmpty()) {
-                val text: String
-                val widget : Widget
+        // Nothing to monitor
+        if (sensitiveLogs.isEmpty())
+            return null
 
-                val explRecord = record.action as WidgetExplorationAction
-                // When it's runtime permission, the action action happened before therefore must look for it
-                // moreover, if no previous action was found it happened on a reset
-                if (explRecord.isEndorseRuntimePermission) {
-                    if (previousNonPermissionDialogAction != null) {
-                        val tmpWidget = Reporter.getActionWidget(previousNonPermissionDialogAction)
-                        text = Reporter.getWidgetText(tmpWidget)
-                        widget = tmpWidget ?: explRecord.widget
-                    }
-                    else {
-                        text = "<RESET>"
-                        widget = explRecord.widget
-                    }
-                } else {
-                    val tmpWidget = Reporter.getActionWidget(record)
-                    text = Reporter.getWidgetText(tmpWidget)
-                    widget = explRecord.widget
-                }
+        if (record.action is WidgetExplorationAction){
 
-                val widgetSummary = if (text == "<RESET>")
-                    ExploredWidget(text)
+            val explRecord = record.action as WidgetExplorationAction
+            val lastAppWidget = if (explRecord.isEndorseRuntimePermission) {
+                val previousNonPermissionDialogAction = getPreviousNonPermissionDialogAction(history, index)
+
+                if (previousNonPermissionDialogAction.type == ExplorationType.Reset)
+                    ExploredWidget.dummyWidget
                 else
-                    ExploredWidget(text, widget)
-
-                val screenshot = Paths.get(record.actionResult?.screenshot).fileName
-
-                sensitiveLogs.forEach { log ->
-                    if (!widgetSummary.foundApis.any { it.api.uniqueString == (log as IApi).uniqueString })
-                        widgetSummary.addFoundAPI(log as IApi, screenshot)
-                }
-
-                return widgetSummary
+                    (previousNonPermissionDialogAction.action as WidgetExplorationAction).widget
             }
+            else
+                explRecord.widget
+
+            // Was an exploration action, record.type guarantees it
+            val exploredWidget = ExploredWidget(lastAppWidget!!)
+
+            val screenshot = record.actionResult?.screenshot
+            val screenshotPath = if (screenshot != null)
+                Paths.get(screenshot).fileName
+            else
+                Paths.get(".").fileName
+
+            sensitiveLogs.forEach { log ->
+                if (!exploredWidget.foundApis.any { it.api.uniqueString == (log as IApi).uniqueString })
+                    exploredWidget.addFoundAPI(log as IApi, screenshotPath)
+            }
+
+            return exploredWidget
         }
 
+        // Not an exploration action
         return null
     }
 
-    private fun getPreviousNonPermissionDialogAction(memoryRecord: List<IMemoryRecord>, index: Int): IMemoryRecord? {
-        if (index <= 0)
-            return null
+    private fun getPreviousNonPermissionDialogAction(memoryRecord: List<IMemoryRecord>, index: Int): IMemoryRecord {
+        // First reset
+        if (index == 0)
+            return memoryRecord[index]
 
         val previousAction = memoryRecord[index - 1]
 
@@ -375,7 +347,9 @@ object Analyzer{
                 getPreviousNonPermissionDialogAction(memoryRecord, index - 1)
             else
                 previousAction
-        } else
+        } else if (previousAction.type == ExplorationType.Reset)
+            return previousAction
+        else
             getPreviousNonPermissionDialogAction(memoryRecord, index - 1)
     }
 }
