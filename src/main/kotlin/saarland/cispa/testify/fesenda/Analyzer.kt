@@ -8,6 +8,7 @@ import org.droidmate.configuration.ConfigurationBuilder
 import org.droidmate.device.datatypes.Widget
 import org.droidmate.exploration.actions.WidgetExplorationAction
 import org.droidmate.misc.SysCmdExecutor
+import org.droidmate.report.isEquivalentIgnoreLocation
 import org.droidmate.report.uniqueString
 import org.slf4j.LoggerFactory
 import saarland.cispa.testify.*
@@ -38,12 +39,7 @@ object Analyzer{
                       cfg: Configuration = ConfigurationBuilder().build(args, FileSystems.getDefault()),
                       expCfg: ExperimentConfiguration = ExperimentConfiguration(cfg, ArrayList())): List<Memory> {
         val wrapper = DroidmateWrapper(expCfg.workDir)
-
-        // Select appropriate strategies
-        // To quickly disable a strategy uncomment and change
         val selectedStrategies = ApkExplorer.defaultStrategies
-        //.filterNot { p -> p == StrategyTypes.FitnessProportionate }
-
         val apkExploration = ApkExplorer.build(selectedStrategies, expCfg, wrapper, additionalStrategies)
 
         apkExploration.explore(moveOutputToAppDir)
@@ -54,7 +50,7 @@ object Analyzer{
         additionalStrategies
                 .filterIsInstance(MemoryPlayback::class.java)
                 .forEach { strategy ->
-                    logger.info("Playback similarity: ${strategy.getExplorationRatio()}")
+                    //logger.info("Playback similarity: ${strategy.getExplorationRatio()}")
                     Reporter.writePlaybackResults(strategy.traces)
                 }
 
@@ -152,16 +148,18 @@ object Analyzer{
                 Writer.writeWidgetApisList(widgetApiList, baseName)
 
                 if (widgetApiList.any { it.widget.uniqueString == candidate.widget.uniqueString }) {
-                    val executedPlayback = playbackStrategy.first() as MemoryPlayback
-                    val similarityRatio = executedPlayback.getExplorationRatio(candidate.widget)
+                    val similarityRatio = candidate.getExploredRatio()
 
                     candidate.blockedRatio = similarityRatio
                     val seenWidgetsTrace = getWidgetsSeen(memory.getRecords())
                     candidate.seenWidgetsBlock.addAll(seenWidgetsTrace)
 
+                    // Remove all widgets seen
+                    // If they have resId or text, remove those which were not found as well
                     val unseenWidgets = candidate.seenWidgets.filterNot { c -> seenWidgetsTrace.any { t -> c.uniqueString == t.uniqueString } }
-                    val seenWidgetsRatio = 1 - (unseenWidgets.size / candidate.seenWidgets.size.toDouble())
-                    candidate.seenRatio = seenWidgetsRatio
+                            .filterNot { c -> !(c.text.isEmpty() && c.resourceId.isEmpty()) && seenWidgetsTrace.any { t -> t.isEquivalentIgnoreLocation(c) } }
+                    val unseenWidgetsRatio = unseenWidgets.size / candidate.seenWidgets.size.toDouble()
+                    candidate.unseenRatio = unseenWidgetsRatio
                 }
             }
         }
@@ -194,7 +192,8 @@ object Analyzer{
                     if (apiWidgetSummary.any { it.widget.uniqueString == candidate.widget.uniqueString }) {
                         successCount++
 
-                        similarityRatio += (playbackStrategy.first() as MemoryPlayback).getExplorationRatio(candidate.widget)
+                        //similarityRatio += (playbackStrategy.first() as MemoryPlayback).getExplorationRatio(candidate.widget)
+                        similarityRatio += candidate.getExploredRatio()
 
                         val seenWidgetsTrace = getWidgetsSeen(memory.getRecords())
                         val unseenWidgets = seenWidgetsTrace.filterNot { c -> candidate.seenWidgets.any { t -> c.uniqueString == t.uniqueString } }

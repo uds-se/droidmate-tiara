@@ -23,8 +23,8 @@ object Writer{
     @JvmStatic
     fun writeReports(candidateTraces: List<CandidateTrace>, traceData: List<PlaybackTrace>){
         val confirmed = candidateTraces.filter { it.confirmRatio == 1.0 }
-        val blocked = candidateTraces.filter { it.blockedRatio == 1.0 && it.seenRatio == 1.0 }
-        val partial = candidateTraces.filter { it.blockedRatio == 1.0 && it.seenRatio < 1.0 }
+        val blocked = candidateTraces.filter { it.blockedRatio == 1.0 && it.unseenRatio == 0.0 }
+        val partial = candidateTraces.filter { it.blockedRatio == 1.0 && it.unseenRatio > 0.0 }
         val notBlocked = candidateTraces.filter { it.confirmRatio == 1.0 && it.blockedRatio < 1.0 }
         val notConfirmed = candidateTraces.filter { it.confirmRatio < 1.0 }
 

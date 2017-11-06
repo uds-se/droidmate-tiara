@@ -17,7 +17,7 @@ import java.nio.file.Path
 data class CandidateTrace(val widget: Widget, val trace: PlaybackTrace, val api: IApi, var screenshot : URI?): Serializable{
     var confirmRatio = 0.0
     var blockedRatio = 0.0
-    var seenRatio = 0.0
+    var unseenRatio = 0.0
     val seenWidgets : MutableList<Widget> = ArrayList()
     val seenWidgetsBlock : MutableList<Widget> = ArrayList()
 
@@ -33,8 +33,12 @@ data class CandidateTrace(val widget: Widget, val trace: PlaybackTrace, val api:
         logger.info("Candidate trace successfully serialized to $outPath")
     }
 
+    fun getExploredRatio(): Double{
+        return this.trace.getExploredRatio(this.widget)
+    }
+
     override fun toString(): String {
-        return "C${this.confirmRatio}\tB${this.blockedRatio}\tS${this.seenRatio}\t${this.widget.uniqueString}\t${this.api.uniqueString}\t${this.screenshot}"
+        return "C${this.confirmRatio}\tB${this.blockedRatio}\tS${this.unseenRatio}\t${this.widget.uniqueString}\t${this.api.uniqueString}\t${this.screenshot}"
     }
 
     companion object {
