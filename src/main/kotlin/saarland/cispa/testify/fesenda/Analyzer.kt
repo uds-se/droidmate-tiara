@@ -6,6 +6,7 @@ import org.droidmate.apis.IApiLogcatMessage
 import org.droidmate.configuration.Configuration
 import org.droidmate.configuration.ConfigurationBuilder
 import org.droidmate.device.datatypes.Widget
+import org.droidmate.exploration.actions.ResetAppExplorationAction
 import org.droidmate.exploration.actions.WidgetExplorationAction
 import org.droidmate.misc.SysCmdExecutor
 import org.droidmate.report.isEquivalentIgnoreLocation
@@ -91,14 +92,14 @@ object Analyzer{
     private fun List<CandidateTrace>.serialize(suffix: String, appPackageName: String,
                                 expCfg: ExperimentConfiguration){
         this.forEachIndexed { index, trace ->
-            val outPath = expCfg.dataDir.resolve("${appPackageName}_${suffix}_$index.trace")
+            val outPath = expCfg.dataDir.resolve("${appPackageName}_${suffix}_$index.playbackTrace")
             try {
-                logger.info("Serializing trace to ${outPath.fileName}")
+                logger.info("Serializing playbackTrace to ${outPath.fileName}")
                 trace.serialize(outPath)
                 logger.info("Trace serialized")
             }
             catch(e: IOException){
-                logger.error("Filed to serialize trace to ${outPath.fileName}: ${e.message}", e)
+                logger.error("Filed to serialize playbackTrace to ${outPath.fileName}: ${e.message}", e)
             }
         }
     }
@@ -127,14 +128,14 @@ object Analyzer{
         candidateTraces
                 .filter { it.confirmRatio == 1.0 }
                 .forEachIndexed { index, candidate ->
-            candidate.trace.reset()
+            candidate.playbackTrace.reset()
             val cfg = ConfigurationBuilder().build(args, FileSystems.getDefault())
 
             if (cfg.deviceSerialNumber.isEmpty()) {
                 val deviceSN = AdbWrapper(cfg, SysCmdExecutor()).androidDevicesDescriptors[cfg.deviceIndex].deviceSerialNumber
                 cfg.deviceSerialNumber = deviceSN
             }
-            val playbackStrategy = PlaybackWithEnforcement.build(appPackageName, arrayListOf(candidate.trace),
+            val playbackStrategy = PlaybackWithEnforcement.build(appPackageName, arrayListOf(candidate.playbackTrace),
                     candidate.widget, candidate.api, cfg)
             val memoryData = start(args.filterNot { it == "-takeScreenshots" }.toTypedArray(),
                     playbackStrategy, false, cfg)
@@ -166,7 +167,7 @@ object Analyzer{
     }
 
     /**
-     * Run each trace multiple times to see if they can be constantly reproduced
+     * Run each playbackTrace multiple times to see if they can be constantly reproduced
      */
     private fun confirmCandidateTraces(candidateTraces: List<CandidateTrace>, args: Array<String>, appPackageName: String){
         logger.debug("Exploring traces")
@@ -175,9 +176,9 @@ object Analyzer{
             var similarityRatio = 0.0
             var successCount = 0
             (0 until nrAttemptsConfirm).forEach { p ->
-                logger.info("Exploring trace $p for (Api=${candidate.api.uniqueString} Widget=${candidate.widget.uniqueString})")
-                candidate.trace.reset()
-                val playbackStrategy = MemoryPlayback.build(appPackageName, arrayListOf(candidate.trace))
+                logger.info("Exploring playbackTrace $p for (Api=${candidate.api.uniqueString} Widget=${candidate.widget.uniqueString})")
+                candidate.playbackTrace.reset()
+                val playbackStrategy = MemoryPlayback.build(appPackageName, arrayListOf(candidate.playbackTrace))
                 val memoryData = start(args.filterNot { it == "-takeScreenshots" }.toTypedArray(),
                         playbackStrategy, false)
 
@@ -202,7 +203,7 @@ object Analyzer{
                 }
             }
 
-            candidate.trace.reset()
+            candidate.playbackTrace.reset()
             if (successCount == nrAttemptsConfirm) {
                 candidate.confirmRatio = similarityRatio / nrAttemptsConfirm
 
@@ -211,7 +212,7 @@ object Analyzer{
     }
 
     /**
-     * Filter all traces which contain a relevant API. Creates a trace for each API and widget to
+     * Filter all traces which contain a relevant API. Creates a playbackTrace for each API and widget to
      * allow to be independently evaluated
       */
     private fun MutableList<PlaybackTrace>.createCandidateTraces(exploredWidgetList: List<ExploredWidget>): List<CandidateTrace>{
@@ -241,8 +242,8 @@ object Analyzer{
         val packageName = this.getApk().packageName
 
         // Create traces from memory records
-        // Each trace starts with a reset
-        // Last trace ends with terminate exploration
+        // Each playbackTrace starts with a reset
+        // Last playbackTrace ends with terminate exploration
         for (i in 0 until memoryRecords.size) {
             val memoryRecord = memoryRecords[i]
 
@@ -305,7 +306,7 @@ object Analyzer{
             val lastAppWidget = if (explRecord.isEndorseRuntimePermission) {
                 val previousNonPermissionDialogAction = getPreviousNonPermissionDialogAction(history, index)
 
-                if (previousNonPermissionDialogAction.type == ExplorationType.Reset)
+                if (previousNonPermissionDialogAction.action is ResetAppExplorationAction)
                     ExploredWidget.dummyWidget
                 else
                     (previousNonPermissionDialogAction.action as WidgetExplorationAction).widget
