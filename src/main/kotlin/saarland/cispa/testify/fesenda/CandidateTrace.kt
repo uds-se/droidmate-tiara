@@ -38,7 +38,7 @@ data class CandidateTrace(val widget: Widget, val trace: PlaybackTrace, val api:
     }
 
     override fun toString(): String {
-        return "C${this.confirmRatio}\tB${this.blockedRatio}\tS${this.unseenRatio}\t${this.widget.uniqueString}\t${this.api.uniqueString}\t${this.screenshot}"
+        return "C${this.confirmRatio}\tB${this.blockedRatio}\tU${this.unseenRatio}\t${this.widget.uniqueString}\t${this.api.uniqueString}\t${this.screenshot}"
     }
 
     companion object {
