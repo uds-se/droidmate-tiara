@@ -9,7 +9,7 @@ object FrontEnd {
     fun main(args: Array<String>) {
         logger.info("Starting experiments")
         try {
-            val newArgs = arrayOf("-resetEvery=100", "-actionsLimit=5", "-randomSeed=0",
+            val newArgs = arrayOf("-resetEvery=5", "-actionsLimit=11", "-randomSeed=1",
                     "-device=0", "-apksDir=./apks", "-takeScreenshots")
             Analyzer.run(newArgs)
         } catch (e: Exception) {
