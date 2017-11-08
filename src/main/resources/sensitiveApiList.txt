@@ -17,8 +17,6 @@ android.telephony.TelephonyManager->getSubscriberId()
 android.telephony.TelephonyManager->getVoiceMailAlphaTag()
 android.telephony.TelephonyManager->getVoiceMailNumber()
 java.net.Socket->connect(java.net.SocketAddress,int)
-java.net.URL->openConnection()
-java.net.URL->openConnection(java.net.Proxy)
 org.apache.http.impl.client.AbstractHttpClient->execute(org.apache.http.HttpHost,org.apache.http.HttpRequest,org.apache.http.protocol.HttpContext)
 android.content.ContentResolver->query(android.net.Uri,java.lang.String[],java.lang.String,java.lang.String[],java.lang.String,android.os.CancellationSignal)	content://call_log/calls
 android.content.ContentResolver->query(android.net.Uri,java.lang.String[],java.lang.String,java.lang.String[],java.lang.String,android.os.CancellationSignal)	content://com.android.contacts/contacts
