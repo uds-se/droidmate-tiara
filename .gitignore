@@ -25,6 +25,7 @@ output_device*
 exec_summary
 api_summary
 coverage
+experiments
 
 # Temp dir
 *.apk
