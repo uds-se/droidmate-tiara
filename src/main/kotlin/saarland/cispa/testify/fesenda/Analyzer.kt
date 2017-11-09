@@ -250,7 +250,8 @@ object Analyzer{
             if (memoryRecord.type == ExplorationType.Reset)
                 traces.add(PlaybackTrace())
 
-            traces.last().add(memoryRecord.action, memoryRecord.state, packageName)
+            val widgetContext = this.getWidgetContext(memoryRecord.state, packageName)
+            traces.last().add(memoryRecord.action, widgetContext)
         }
 
         return traces

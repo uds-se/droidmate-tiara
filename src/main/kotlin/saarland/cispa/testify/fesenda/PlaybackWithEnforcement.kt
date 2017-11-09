@@ -10,6 +10,7 @@ import org.droidmate.exploration.actions.WidgetExplorationAction
 import org.droidmate.misc.SysCmdExecutor
 import org.droidmate.report.uniqueString
 import saarland.cispa.testify.ISelectableExplorationStrategy
+import saarland.cispa.testify.strategies.WidgetContext
 import saarland.cispa.testify.strategies.playback.MemoryPlayback
 import saarland.cispa.testify.strategies.playback.PlaybackTrace
 import java.io.IOException
@@ -21,8 +22,8 @@ class PlaybackWithEnforcement private constructor(packageName: String, newTraces
 
     private val cmdExecutor = SysCmdExecutor()
 
-    override fun chooseAction(guiState: IGuiState, appPackageName: String): ExplorationAction {
-        val action = super.chooseAction(guiState, appPackageName)
+    override fun chooseAction(widgetContext: WidgetContext, guiState: IGuiState, appPackageName: String): ExplorationAction {
+        val action = super.chooseAction(widgetContext, guiState, appPackageName)
 
         enforcePolicies(action)
 
