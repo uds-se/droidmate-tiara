@@ -2,7 +2,6 @@ package saarland.cispa.testify.fesenda
 
 import org.droidmate.apis.IApi
 import org.droidmate.configuration.Configuration
-import org.droidmate.device.datatypes.IGuiState
 import org.droidmate.device.datatypes.Widget
 import org.droidmate.exploration.actions.ExplorationAction
 import org.droidmate.exploration.actions.ResetAppExplorationAction
@@ -22,8 +21,8 @@ class PlaybackWithEnforcement private constructor(packageName: String, newTraces
 
     private val cmdExecutor = SysCmdExecutor()
 
-    override fun chooseAction(widgetContext: WidgetContext, guiState: IGuiState, appPackageName: String): ExplorationAction {
-        val action = super.chooseAction(widgetContext, guiState, appPackageName)
+    override fun chooseAction(widgetContext: WidgetContext): ExplorationAction {
+        val action = super.chooseAction(widgetContext)
 
         enforcePolicies(action)
 
