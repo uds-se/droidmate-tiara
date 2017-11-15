@@ -3,6 +3,7 @@ package saarland.cispa.testify.fesenda
 import org.droidmate.report.isEquivalentIgnoreLocation
 import org.droidmate.report.uniqueString
 import org.slf4j.LoggerFactory
+import saarland.cispa.testify.ExperimentConfiguration
 import saarland.cispa.testify.Reporter
 import saarland.cispa.testify.strategies.playback.PlaybackTrace
 import java.io.IOException
@@ -13,9 +14,9 @@ object Writer {
     private val logger = LoggerFactory.getLogger(Writer::class.java)
 
     @JvmStatic
-    fun writeWidgetApisList(widgetSummaryData: List<ExploredWidget>, reportName: String) {
+    fun writeWidgetApisList(expCfg: ExperimentConfiguration, widgetSummaryData: List<ExploredWidget>, reportName: String) {
         logger.info("Writing API widget summary .........")
-        val summaryDir = Reporter.initialize()
+        val summaryDir = Reporter(expCfg).initialize()
 
         // Widget - API Summary
         val widgetAPISummaryFile = summaryDir.resolve("$reportName-widget-api-summary.txt")

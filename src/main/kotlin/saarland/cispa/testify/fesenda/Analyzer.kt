@@ -52,7 +52,7 @@ object Analyzer{
                 .filterIsInstance(MemoryPlayback::class.java)
                 .forEach { strategy ->
                     //logger.info("Playback similarity: ${strategy.getExplorationRatio()}")
-                    Reporter.writePlaybackResults(strategy.traces)
+                    Reporter(expCfg).writePlaybackResults(strategy.traces)
                 }
 
         // Generate results
@@ -74,16 +74,16 @@ object Analyzer{
         val appPkg = apk.packageName
 
         val widgetsApiList = memory.getApisPerWidget()
-        Writer.writeWidgetApisList(widgetsApiList, appPkg)
+        Writer.writeWidgetApisList(expCfg, widgetsApiList, appPkg)
 
         val traceData = memory.buildPlaybackTraces()
         val candidateTraces = traceData.createCandidateTraces(widgetsApiList)
         candidateTraces.serialize("filtered", appPkg, expCfg)
 
-        confirmCandidateTraces(candidateTraces, args, appPkg)
+        confirmCandidateTraces(expCfg, candidateTraces, args, appPkg)
         candidateTraces.serialize("confirmed", appPkg, expCfg)
 
-        evaluateConfirmedTraces(candidateTraces, args, appPkg)
+        evaluateConfirmedTraces(expCfg, candidateTraces, args, appPkg)
         candidateTraces.serialize("evaluated", appPkg, expCfg)
 
         Writer.writeReports(candidateTraces, traceData)
@@ -110,7 +110,7 @@ object Analyzer{
         memoryRecords.forEach { record ->
             if (record.type in arrayListOf(ExplorationType.Explore, ExplorationType.Playback)) {
 
-                record.state.widgets.forEach { w ->
+                record.widgetContext.guiState.widgets.forEach { w ->
                     if (!seenWidgets.any { q -> q.uniqueString == w.uniqueString })
                         seenWidgets.add(w)
                 }
@@ -123,7 +123,7 @@ object Analyzer{
     /**
      * Run the confirmed traces with blocked API and see how similar they are to the normal
      */
-    private fun evaluateConfirmedTraces(candidateTraces: List<CandidateTrace>, args: Array<String>, appPackageName: String){
+    private fun evaluateConfirmedTraces(expCfg: ExperimentConfiguration, candidateTraces: List<CandidateTrace>, args: Array<String>, appPackageName: String){
         logger.debug("Exploring traces with enforcement")
         candidateTraces
                 .filter { it.confirmRatio == 1.0 }
@@ -146,7 +146,7 @@ object Analyzer{
                 val baseName = "${appPkg}_trace$index"
 
                 val widgetApiList = memory.getApisPerWidget()
-                Writer.writeWidgetApisList(widgetApiList, baseName)
+                Writer.writeWidgetApisList(expCfg, widgetApiList, baseName)
 
                 if (widgetApiList.any { it.widget.uniqueString == candidate.widget.uniqueString }) {
                     val similarityRatio = candidate.getExploredRatio()
@@ -169,7 +169,7 @@ object Analyzer{
     /**
      * Run each playbackTrace multiple times to see if they can be constantly reproduced
      */
-    private fun confirmCandidateTraces(candidateTraces: List<CandidateTrace>, args: Array<String>, appPackageName: String){
+    private fun confirmCandidateTraces(expCfg: ExperimentConfiguration, candidateTraces: List<CandidateTrace>, args: Array<String>, appPackageName: String){
         logger.debug("Exploring traces")
         candidateTraces.forEach { candidate ->
             // Repeat 3x to remove "flaky traces"
@@ -188,7 +188,7 @@ object Analyzer{
                     val baseName = "${appPkg}_trace$index"
 
                     val apiWidgetSummary = memory.getApisPerWidget()
-                    Writer.writeWidgetApisList(apiWidgetSummary, baseName)
+                    Writer.writeWidgetApisList(expCfg, apiWidgetSummary, baseName)
 
                     if (apiWidgetSummary.any { it.widget.uniqueString == candidate.widget.uniqueString }) {
                         successCount++
@@ -250,7 +250,7 @@ object Analyzer{
             if (memoryRecord.type == ExplorationType.Reset)
                 traces.add(PlaybackTrace())
 
-            val widgetContext = this.getWidgetContext(memoryRecord.state, packageName)
+            val widgetContext = this.getWidgetContext(memoryRecord.widgetContext.guiState, packageName)
             traces.last().add(memoryRecord.action, widgetContext)
         }
 
