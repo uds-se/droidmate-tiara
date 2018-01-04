@@ -1,7 +1,7 @@
 package saarland.cispa.testify.fesenda
 
 import org.droidmate.apis.IApi
-import org.droidmate.device.datatypes.Widget
+import org.droidmate.device.datatypes.IWidget
 import org.droidmate.report.uniqueString
 import org.nustaq.serialization.FSTObjectInput
 import org.nustaq.serialization.FSTObjectOutput
@@ -14,12 +14,12 @@ import java.io.Serializable
 import java.net.URI
 import java.nio.file.Path
 
-data class CandidateTrace(val widget: Widget, val playbackTrace: PlaybackTrace, val api: IApi, var screenshot : URI?): Serializable{
+data class CandidateTrace(val widget: IWidget, val playbackTrace: PlaybackTrace, val api: IApi, var screenshot : URI?): Serializable{
     var confirmRatio = 0.0
     var blockedRatio = 0.0
     var unseenRatio = 0.0
-    val seenWidgets : MutableList<Widget> = ArrayList()
-    val seenWidgetsBlock : MutableList<Widget> = ArrayList()
+    val seenWidgets : MutableList<IWidget> = ArrayList()
+    val seenWidgetsBlock : MutableList<IWidget> = ArrayList()
 
     @Throws(IOException::class)
     fun serialize(outPath: Path) {

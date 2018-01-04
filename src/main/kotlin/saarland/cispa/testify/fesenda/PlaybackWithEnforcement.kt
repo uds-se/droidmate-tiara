@@ -2,7 +2,7 @@ package saarland.cispa.testify.fesenda
 
 import org.droidmate.apis.IApi
 import org.droidmate.configuration.Configuration
-import org.droidmate.device.datatypes.Widget
+import org.droidmate.device.datatypes.IWidget
 import org.droidmate.exploration.actions.ExplorationAction
 import org.droidmate.exploration.actions.ResetAppExplorationAction
 import org.droidmate.exploration.actions.WidgetExplorationAction
@@ -15,8 +15,10 @@ import saarland.cispa.testify.strategies.playback.PlaybackTrace
 import java.io.IOException
 import java.nio.file.Files
 
-class PlaybackWithEnforcement private constructor(packageName: String, newTraces: List<PlaybackTrace>,
-                                                  private val widget: Widget, private val api: IApi,
+class PlaybackWithEnforcement private constructor(packageName: String,
+                                                  newTraces: List<PlaybackTrace>,
+                                                  private val widget: IWidget,
+                                                  private val api: IApi,
                                                   private val cfg: Configuration) : MemoryPlayback(packageName, newTraces) {
 
     private val cmdExecutor = SysCmdExecutor()
@@ -57,7 +59,7 @@ class PlaybackWithEnforcement private constructor(packageName: String, newTraces
 
     private fun enforcePolicies(action: ExplorationAction){
         // If the action is runtime permission, the current policy should continue to be used
-        if (action.isEndorseRuntimePermission)
+        if (action.isEndorseRuntimePermission())
             return
 
         // Enforcement on reset
@@ -67,7 +69,7 @@ class PlaybackWithEnforcement private constructor(packageName: String, newTraces
             logger.warn("Enforcing policy $policyStr")
             writePoliciesFile(policyStr)
         }
-        else if ((action is WidgetExplorationAction) && (!action.isEndorseRuntimePermission)){
+        else if ((action is WidgetExplorationAction) && (!action.isEndorseRuntimePermission())){
             writePoliciesFile("")
         }
     }
@@ -94,7 +96,7 @@ class PlaybackWithEnforcement private constructor(packageName: String, newTraces
          * @param packageName Package name which should be loaded from the memory. Load all APKS if not provided
          * @param memoryTraces Trace of previous exploration (set of actions between 2 resets)
          */
-        fun build(packageName: String, memoryTraces: List<PlaybackTrace>, widget: Widget,
+        fun build(packageName: String, memoryTraces: List<PlaybackTrace>, widget: IWidget,
                   api: IApi, cfg: Configuration): List<ISelectableExplorationStrategy> {
             return listOf(PlaybackWithEnforcement(packageName, memoryTraces, widget, api, cfg))
         }

@@ -5,7 +5,7 @@ import org.droidmate.apis.IApi
 import org.droidmate.apis.IApiLogcatMessage
 import org.droidmate.configuration.Configuration
 import org.droidmate.configuration.ConfigurationBuilder
-import org.droidmate.device.datatypes.Widget
+import org.droidmate.device.datatypes.IWidget
 import org.droidmate.exploration.actions.ResetAppExplorationAction
 import org.droidmate.exploration.actions.WidgetExplorationAction
 import org.droidmate.misc.SysCmdExecutor
@@ -104,8 +104,8 @@ object Analyzer{
         }
     }
 
-    private fun getWidgetsSeen(memoryRecords: List<IMemoryRecord>): List<Widget>{
-        val seenWidgets : MutableList<Widget> = ArrayList()
+    private fun getWidgetsSeen(memoryRecords: List<IMemoryRecord>): List<IWidget>{
+        val seenWidgets : MutableList<IWidget> = ArrayList()
 
         memoryRecords.forEach { record ->
             if (record.type in arrayListOf(ExplorationType.Explore, ExplorationType.Playback)) {
@@ -132,7 +132,7 @@ object Analyzer{
             val cfg = ConfigurationBuilder().build(args, FileSystems.getDefault())
 
             if (cfg.deviceSerialNumber.isEmpty()) {
-                val deviceSN = AdbWrapper(cfg, SysCmdExecutor()).androidDevicesDescriptors[cfg.deviceIndex].deviceSerialNumber
+                val deviceSN = AdbWrapper(cfg, SysCmdExecutor()).getAndroidDevicesDescriptors()[cfg.deviceIndex].deviceSerialNumber
                 cfg.deviceSerialNumber = deviceSN
             }
             val playbackStrategy = PlaybackWithEnforcement.build(appPackageName, arrayListOf(candidate.playbackTrace),
@@ -293,7 +293,7 @@ object Analyzer{
     private fun getExploredWidget(history: List<IMemoryRecord>, index: Int): ExploredWidget? {
         val record = history[index]
 
-        val candidateLogs = record.actionResult!!.deviceLogs.apiLogsOrEmpty
+        val candidateLogs = record.actionResult!!.deviceLogs.apiLogs
         // Remove all non monitored APIs
         val sensitiveLogs = candidateLogs.filter { candidate -> sensitiveApiList.any { monitored -> candidate.matches(monitored) } }
 
@@ -304,7 +304,7 @@ object Analyzer{
         if (record.action is WidgetExplorationAction){
 
             val explRecord = record.action as WidgetExplorationAction
-            val lastAppWidget = if (explRecord.isEndorseRuntimePermission) {
+            val lastAppWidget = if (explRecord.isEndorseRuntimePermission()) {
                 val previousNonPermissionDialogAction = getPreviousNonPermissionDialogAction(history, index)
 
                 if (previousNonPermissionDialogAction.action is ResetAppExplorationAction)
@@ -316,7 +316,7 @@ object Analyzer{
                 explRecord.widget
 
             // Was an exploration action, record.type guarantees it
-            val exploredWidget = ExploredWidget(lastAppWidget!!)
+            val exploredWidget = ExploredWidget(lastAppWidget)
 
             val screenshot = record.actionResult?.screenshot
             val screenshotPath = if (screenshot != null)
@@ -344,7 +344,7 @@ object Analyzer{
         val previousAction = memoryRecord[index - 1]
 
         return if (previousAction.action is WidgetExplorationAction) {
-            if (previousAction.action.isEndorseRuntimePermission)
+            if (previousAction.action.isEndorseRuntimePermission())
                 getPreviousNonPermissionDialogAction(memoryRecord, index - 1)
             else
                 previousAction

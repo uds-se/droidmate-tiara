@@ -1,13 +1,14 @@
 package saarland.cispa.testify.fesenda
 
 import org.droidmate.apis.IApi
+import org.droidmate.device.datatypes.IWidget
 import org.droidmate.device.datatypes.Widget
 import org.droidmate.report.uniqueString
 import java.awt.Rectangle
 import java.nio.file.Path
 
-class ExploredWidget(val widget: Widget = dummyWidget,
-                     val foundApis: MutableList<FoundApi> = ArrayList()) {
+class ExploredWidget @JvmOverloads constructor(val widget: IWidget = dummyWidget,
+                                               val foundApis: MutableList<FoundApi> = ArrayList()) {
 
     fun addFoundAPI(api: IApi, screenshot: Path?) {
         // Insert only the first time it was found
@@ -36,7 +37,7 @@ class ExploredWidget(val widget: Widget = dummyWidget,
         return this.widget.uniqueString == other.widget.uniqueString
     }
 
-    fun merge(exploredWidget: ExploredWidget){
+    fun merge(exploredWidget: ExploredWidget) {
         assert(exploredWidget.widget.uniqueString == this.widget.uniqueString)
 
         val newApiData = exploredWidget.foundApis
@@ -46,13 +47,12 @@ class ExploredWidget(val widget: Widget = dummyWidget,
     }
 
     companion object {
-        val dummyWidget = Widget("<RESET>").apply {
+        val dummyWidget: IWidget = Widget("<RESET>").apply {
             packageName = "STUB!"
             bounds = Rectangle(1, 1, 5, 5)
             deviceDisplayBounds = Rectangle(100, 100)
             enabled = true
             clickable = true
         }
-
     }
 }
