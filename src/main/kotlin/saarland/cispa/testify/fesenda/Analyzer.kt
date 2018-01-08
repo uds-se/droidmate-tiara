@@ -319,7 +319,7 @@ object Analyzer{
             val exploredWidget = ExploredWidget(lastAppWidget)
 
             val screenshot = record.actionResult?.screenshot
-            val screenshotPath = if (screenshot != null)
+            val screenshotPath = if (!screenshot.toString().startsWith("test://"))
                 Paths.get(screenshot).fileName
             else
                 Paths.get(".").fileName
