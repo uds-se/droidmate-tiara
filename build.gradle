@@ -23,7 +23,7 @@ repositories {
 
 dependencies {
     // This dependency is supposed to come from mavenLocal().
-    compile "saarland.cispa.testify:exploration:1.0"
+    compile "saarland.cispa.testify:exploration:1.0.1"
 
     compile "org.jetbrains.kotlin:kotlin-stdlib-jre8:$kotlin_version"
 }
