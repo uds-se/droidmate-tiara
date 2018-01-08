@@ -9,8 +9,9 @@ object FrontEnd {
     fun main(args: Array<String>) {
         logger.info("Starting experiments")
         try {
-            val newArgs = arrayOf("-resetEvery=5", "-actionsLimit=11", "-randomSeed=1",
-                    "-device=0", "-apksDir=./apks", "-takeScreenshots")
+            val newArgs = arrayOf("-resetEvery=30", /*"-timeLimit=300",*/ "-actionsLimit=300",
+                    "-randomSeed=1", "-device=0", "-apksDir=./apks",
+                    /*"-launchActivityDelay=1000",*/ "-takeScreenshots", "-monitorUseLogcat=false")
             Analyzer.run(newArgs)
         } catch (e: Exception) {
             logger.info("Experiments finished with error")
