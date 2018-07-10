@@ -1,31 +1,95 @@
 package saarland.cispa.testify.fesenda
 
-import org.droidmate.android_sdk.AdbWrapper
+import org.droidmate.ExplorationAPI
 import org.droidmate.apis.IApi
-import org.droidmate.apis.IApiLogcatMessage
-import org.droidmate.configuration.Configuration
 import org.droidmate.configuration.ConfigurationBuilder
-import org.droidmate.device.datatypes.IWidget
-import org.droidmate.exploration.actions.ResetAppExplorationAction
-import org.droidmate.exploration.actions.WidgetExplorationAction
-import org.droidmate.misc.SysCmdExecutor
-import org.droidmate.report.isEquivalentIgnoreLocation
-import org.droidmate.report.uniqueString
-import org.slf4j.LoggerFactory
-import saarland.cispa.testify.*
-import saarland.cispa.testify.strategies.playback.MemoryPlayback
-import saarland.cispa.testify.strategies.playback.PlaybackTrace
-import java.io.IOException
+import org.droidmate.exploration.ExplorationContext
+import org.droidmate.exploration.strategy.ResourceManager
 import java.nio.file.FileSystems
+import java.nio.file.Files
+import java.nio.file.Path
 import java.nio.file.Paths
+import java.util.*
 
 object Analyzer{
-    private val logger = LoggerFactory.getLogger(Analyzer::class.java)
+    private val nullUID = UUID.fromString("4cf44f4b-e036-4705-9da7-e39beea34a16")
 
-    private val nrAttemptsConfirm = 1//3
-    private val sensitiveApiList = ResourceManager.getResourceAsStringList("sensitiveApiList.txt")
+    //private val nrAttemptsConfirm = 3
+    private val sensitiveApiList by lazy { ResourceManager.getResourceAsStringList("sensitiveApiList.txt") }
+	private val rootOutDir: Path = Paths.get("out").toAbsolutePath()
 
     fun run(args: Array<String>){
+
+		println("Starting FeSenDA")
+		Files.createDirectories(rootOutDir)
+
+		val outDir = rootOutDir.resolve("original")
+
+		val outArgs = args.toMutableList()
+				.also {
+					it.add("--Output-outputDir=$outDir")
+				}
+
+        val cfg = ConfigurationBuilder().build(outArgs.toTypedArray(), FileSystems.getDefault())
+        val explorationData = ExplorationAPI.explore(cfg)
+
+        explorationData.forEach { exploredApp ->
+            runFeSenDA(exploredApp)
+        }
+    }
+
+    private fun runFeSenDA(data : ExplorationContext){
+		val apisPerWidget = data.getApisPerWidget()
+
+		apisPerWidget.forEach { widgetId, apis ->
+			apis.forEach { api ->
+				println("Identified widget: $widgetId with API $api")
+			}
+		}
+    }
+
+    private fun ExplorationContext.getApisPerWidget(): Map<UUID, List<IApi>>{
+        val exploredWidgets: MutableMap<UUID, MutableList<IApi>> = mutableMapOf()
+
+        val exploration = this.actionTrace.getActions()
+
+        exploration.indices.forEach { index ->
+            val apis = exploration[index].deviceLogs.apiLogs
+					//.filter { candidate -> sensitiveApiList.any { monitored -> candidate.matches(monitored) } }
+
+            apis.forEach { api ->
+                val widgetId = exploration[index].targetWidget?.uid ?: nullUID
+
+                exploredWidgets.getOrPut(widgetId) { mutableListOf() }.add(api)
+            }
+        }
+
+        return exploredWidgets
+    }
+
+	private fun IApi.matches(monitored: String): Boolean{
+		var uri = ""
+		if (this.objectClass.contains("ContentResolver") && this.paramTypes.indexOf("android.net.Uri") != -1)
+			uri = "\t${this.parseUri()}"
+
+		val params = this.paramTypes.joinToString(separator = ",")
+
+		val thisValue = "${this.objectClass}->${this.methodName}($params)$uri"
+
+		return thisValue.contains(monitored)
+	}
+
+    private fun exploreWithEnforcement(args: Array<String>, widgetId: UUID, api: IApi): List<ExplorationContext>{
+		/*val playbackArgs = mutableListOf(*args)
+		playbackArgs
+
+		val cfg = ConfigurationBuilder().build(args, FileSystems.getDefault())
+		val explorationData = ExplorationAPI.explore(cfg)*/
+
+		return emptyList()
+	}
+
+    /*fun run(args: Array<String>){
         val additionalStrategies = getAdditionalExtraStrategies()
         val cfg = ConfigurationBuilder().build(args, FileSystems.getDefault())
         val expCfg = ExperimentConfiguration(cfg, ArrayList())
@@ -34,10 +98,10 @@ object Analyzer{
         memoryData.forEach { processMemory(it, args, expCfg) }
     }
 
-    private fun start(args: Array<String>, 
+    private fun start(args: Array<String>,
                       additionalStrategies: List<ISelectableExplorationStrategy>,
                       moveOutputToAppDir: Boolean,
-                      cfg: Configuration = ConfigurationBuilder().build(args, FileSystems.getDefault()),
+                      cfg: ConfigurationWrapper = ConfigurationBuilder().build(args, FileSystems.getDefault()),
                       expCfg: ExperimentConfiguration = ExperimentConfiguration(cfg, ArrayList())): List<Memory> {
         val wrapper = DroidmateWrapper(expCfg.workDir)
         val selectedStrategies = ApkExplorer.defaultStrategies
@@ -92,14 +156,14 @@ object Analyzer{
     private fun List<CandidateTrace>.serialize(suffix: String, appPackageName: String,
                                 expCfg: ExperimentConfiguration){
         this.forEachIndexed { index, trace ->
-            val outPath = expCfg.dataDir.resolve("${appPackageName}_${suffix}_$index.playbackTrace")
+            val outPath = expCfg.dataDir.resolve("${appPackageName}_${suffix}_$index.playbackModel")
             try {
-                logger.info("Serializing playbackTrace to ${outPath.fileName}")
+                logger.info("Serializing playbackModel to ${outPath.fileName}")
                 trace.serialize(outPath)
                 logger.info("Trace serialized")
             }
             catch(e: IOException){
-                logger.error("Filed to serialize playbackTrace to ${outPath.fileName}: ${e.message}", e)
+                logger.error("Filed to serialize playbackModel to ${outPath.fileName}: ${e.message}", e)
             }
         }
     }
@@ -128,14 +192,14 @@ object Analyzer{
         candidateTraces
                 .filter { it.confirmRatio == 1.0 }
                 .forEachIndexed { index, candidate ->
-            candidate.playbackTrace.reset()
+            candidate.playbackModel.reset()
             val cfg = ConfigurationBuilder().build(args, FileSystems.getDefault())
 
             if (cfg.deviceSerialNumber.isEmpty()) {
                 val deviceSN = AdbWrapper(cfg, SysCmdExecutor()).getAndroidDevicesDescriptors()[cfg.deviceIndex].deviceSerialNumber
                 cfg.deviceSerialNumber = deviceSN
             }
-            val playbackStrategy = PlaybackWithEnforcement.build(appPackageName, arrayListOf(candidate.playbackTrace),
+            val playbackStrategy = PlaybackWithEnforcement(appPackageName, arrayListOf(candidate.playbackModel),
                     candidate.widget, candidate.api, cfg)
             val memoryData = start(args.filterNot { it == "-takeScreenshots" }.toTypedArray(),
                     playbackStrategy, false, cfg)
@@ -167,7 +231,7 @@ object Analyzer{
     }
 
     /**
-     * Run each playbackTrace multiple times to see if they can be constantly reproduced
+     * Run each playbackModel multiple times to see if they can be constantly reproduced
      */
     private fun confirmCandidateTraces(expCfg: ExperimentConfiguration, candidateTraces: List<CandidateTrace>, args: Array<String>, appPackageName: String){
         logger.debug("Exploring traces")
@@ -176,9 +240,9 @@ object Analyzer{
             var similarityRatio = 0.0
             var successCount = 0
             (0 until nrAttemptsConfirm).forEach { p ->
-                logger.info("Exploring playbackTrace $p for (Api=${candidate.api.uniqueString} Widget=${candidate.widget.uniqueString})")
-                candidate.playbackTrace.reset()
-                val playbackStrategy = MemoryPlayback.build(appPackageName, arrayListOf(candidate.playbackTrace))
+                logger.info("Exploring playbackModel $p for (Api=${candidate.api.uniqueString} Widget=${candidate.widget.uniqueString})")
+                candidate.playbackModel.reset()
+                val playbackStrategy = MemoryPlayback.build(appPackageName, arrayListOf(candidate.playbackModel))
                 val memoryData = start(args.filterNot { it == "-takeScreenshots" }.toTypedArray(),
                         playbackStrategy, false)
 
@@ -203,7 +267,7 @@ object Analyzer{
                 }
             }
 
-            candidate.playbackTrace.reset()
+            candidate.playbackModel.reset()
             if (successCount == nrAttemptsConfirm) {
                 candidate.confirmRatio = similarityRatio / nrAttemptsConfirm
 
@@ -212,7 +276,7 @@ object Analyzer{
     }
 
     /**
-     * Filter all traces which contain a relevant API. Creates a playbackTrace for each API and widget to
+     * Filter all traces which contain a relevant API. Creates a playbackModel for each API and widget to
      * allow to be independently evaluated
       */
     private fun MutableList<PlaybackTrace>.createCandidateTraces(exploredWidgetList: List<ExploredWidget>): List<CandidateTrace>{
@@ -242,8 +306,8 @@ object Analyzer{
         val packageName = this.getApk().packageName
 
         // Create traces from memory records
-        // Each playbackTrace starts with a reset
-        // Last playbackTrace ends with terminate exploration
+        // Each playbackModel starts with a reset
+        // Last playbackModel ends with terminate exploration
         for (i in 0 until memoryRecords.size) {
             val memoryRecord = memoryRecords[i]
 
@@ -318,7 +382,7 @@ object Analyzer{
             // Was an exploration action, record.type guarantees it
             val exploredWidget = ExploredWidget(lastAppWidget)
 
-            val screenshot = record.actionResult?.screenshot
+            val screenshot = record.actionResult.screenshot
             val screenshotPath = if (!screenshot.toString().startsWith("test://"))
                 Paths.get(screenshot).fileName
             else
@@ -352,5 +416,5 @@ object Analyzer{
             return previousAction
         else
             getPreviousNonPermissionDialogAction(memoryRecord, index - 1)
-    }
+    }*/
 }

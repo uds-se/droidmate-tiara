@@ -2,7 +2,7 @@ group 'saarland.cispa.testify.fesenda'
 version 'dev'
 
 buildscript {
-    ext.kotlin_version = '1.2.10'
+    ext.kotlin_version = '1.2.51'
 
     repositories {
         mavenCentral()
@@ -23,9 +23,9 @@ repositories {
 
 dependencies {
     // This dependency is supposed to come from mavenLocal().
-    compile "saarland.cispa.testify:exploration:1.0.1"
+    compile "org.droidmate:droidmate-2:1.0-RC3"
 
-    compile "org.jetbrains.kotlin:kotlin-stdlib-jre8:$kotlin_version"
+    compile "org.jetbrains.kotlin:kotlin-stdlib-jdk8:$kotlin_version"
 }
 
 compileKotlin {

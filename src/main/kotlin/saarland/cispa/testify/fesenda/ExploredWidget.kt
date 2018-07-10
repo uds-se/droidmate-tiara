@@ -1,14 +1,11 @@
 package saarland.cispa.testify.fesenda
 
 import org.droidmate.apis.IApi
-import org.droidmate.device.datatypes.IWidget
-import org.droidmate.device.datatypes.Widget
-import org.droidmate.report.uniqueString
-import java.awt.Rectangle
+import org.droidmate.exploration.statemodel.Widget
 import java.nio.file.Path
 
-class ExploredWidget @JvmOverloads constructor(val widget: IWidget = dummyWidget,
-                                               val foundApis: MutableList<FoundApi> = ArrayList()) {
+class ExploredWidget @JvmOverloads constructor(val widget: Widget = dummyWidget,
+                                               val foundApis: MutableList<FoundApi> = mutableListOf()) {
 
     fun addFoundAPI(api: IApi, screenshot: Path?) {
         // Insert only the first time it was found
@@ -22,7 +19,7 @@ class ExploredWidget @JvmOverloads constructor(val widget: IWidget = dummyWidget
 
     override fun toString(): String {
         return foundApis.joinToString(separator = "") { data ->
-            "${widget.uniqueString}\t${data.api.uniqueString}\t${data.screenshot}\t$widget\n"
+            "${widget.uid}\t${data.api.uniqueString}\t${data.screenshot}\t$widget\n"
         }
     }
 
@@ -34,11 +31,11 @@ class ExploredWidget @JvmOverloads constructor(val widget: IWidget = dummyWidget
         if ((other == null) || (other !is ExploredWidget))
             return false
 
-        return this.widget.uniqueString == other.widget.uniqueString
+        return this.widget.uid == other.widget.uid
     }
 
     fun merge(exploredWidget: ExploredWidget) {
-        assert(exploredWidget.widget.uniqueString == this.widget.uniqueString)
+        assert(exploredWidget.widget.uid == this.widget.uid)
 
         val newApiData = exploredWidget.foundApis
                 .filterNot { api -> this.foundApis.contains(api) }
@@ -47,12 +44,6 @@ class ExploredWidget @JvmOverloads constructor(val widget: IWidget = dummyWidget
     }
 
     companion object {
-        val dummyWidget: IWidget = Widget("<RESET>").apply {
-            packageName = "STUB!"
-            bounds = Rectangle(1, 1, 5, 5)
-            deviceDisplayBounds = Rectangle(100, 100)
-            enabled = true
-            clickable = true
-        }
+        val dummyWidget: Widget = Widget()
     }
 }

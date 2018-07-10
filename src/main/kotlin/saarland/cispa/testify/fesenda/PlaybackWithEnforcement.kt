@@ -1,30 +1,36 @@
 package saarland.cispa.testify.fesenda
 
 import org.droidmate.apis.IApi
-import org.droidmate.configuration.Configuration
-import org.droidmate.device.datatypes.IWidget
-import org.droidmate.exploration.actions.ExplorationAction
+import org.droidmate.configuration.ConfigurationWrapper
+import org.droidmate.exploration.actions.AbstractExplorationAction
+import org.droidmate.exploration.actions.ClickExplorationAction
+import org.droidmate.exploration.actions.LongClickExplorationAction
 import org.droidmate.exploration.actions.ResetAppExplorationAction
-import org.droidmate.exploration.actions.WidgetExplorationAction
+import org.droidmate.exploration.statemodel.Widget
+import org.droidmate.exploration.strategy.playback.Playback
 import org.droidmate.misc.SysCmdExecutor
-import org.droidmate.report.uniqueString
-import saarland.cispa.testify.ISelectableExplorationStrategy
-import saarland.cispa.testify.strategies.WidgetContext
-import saarland.cispa.testify.strategies.playback.MemoryPlayback
-import saarland.cispa.testify.strategies.playback.PlaybackTrace
 import java.io.IOException
 import java.nio.file.Files
+import java.nio.file.Path
 
-class PlaybackWithEnforcement private constructor(packageName: String,
-                                                  newTraces: List<PlaybackTrace>,
-                                                  private val widget: IWidget,
-                                                  private val api: IApi,
-                                                  private val cfg: Configuration) : MemoryPlayback(packageName, newTraces) {
-
+/**
+ * Playback with enforcement strategy. It attempts to playback a [recorded model][modelDir] extracted from
+ * and exploration log, delimited by reset actions and restricts access to an [API][api]
+ * while interacting with a specific widget
+ *
+ * @param widget Widget which should be restricted
+ * @param api API which should be restricted
+ * @param cfg Experiment configuration
+ * @param modelDir Trace of previous exploration
+ */
+class PlaybackWithEnforcement constructor(private val widget: Widget?,
+                                          private val api: IApi,
+                                          private val cfg: ConfigurationWrapper,
+                                          modelDir: Path) : Playback(modelDir) /*MemoryPlayback(packageName, traces)*/ {
     private val cmdExecutor = SysCmdExecutor()
 
-    override fun chooseAction(widgetContext: WidgetContext): ExplorationAction {
-        val action = super.chooseAction(widgetContext)
+    override fun chooseAction(): AbstractExplorationAction {
+        val action = super.chooseAction()
 
         enforcePolicies(action)
 
@@ -57,21 +63,32 @@ class PlaybackWithEnforcement private constructor(packageName: String,
         return "$objectClass.$methodName($params)$uri\tMock"
     }
 
-    private fun enforcePolicies(action: ExplorationAction){
+	private fun shouldEnablePolicy(action: AbstractExplorationAction): Boolean{
+		return when {
+			(action is ResetAppExplorationAction) -> (widget == null)
+			(action is ClickExplorationAction) -> (action.widget.uid == widget?.uid)
+			(action is LongClickExplorationAction) -> (action.widget.uid == widget?.uid)
+			else -> false
+		}
+	}
+
+	private fun shouldDisablePolicy(action: AbstractExplorationAction): Boolean{
+		return (action is ClickExplorationAction) && (!action.isEndorseRuntimePermission())
+	}
+
+    private fun enforcePolicies(action: AbstractExplorationAction){
         // If the action is runtime permission, the current policy should continue to be used
         if (action.isEndorseRuntimePermission())
             return
 
         // Enforcement on reset
-        if ( ((action is ResetAppExplorationAction) && (widget.id == "<RESET>")) ||
-        ((action is WidgetExplorationAction) && (widget.uniqueString == action.widget.uniqueString))){
+		if (shouldEnablePolicy(action)) {
             val policyStr = api.toPolicyEnforcementString()
             logger.warn("Enforcing policy $policyStr")
             writePoliciesFile(policyStr)
         }
-        else if ((action is WidgetExplorationAction) && (!action.isEndorseRuntimePermission())){
+        else if (shouldDisablePolicy(action))
             writePoliciesFile("")
-        }
     }
 
     private fun writePoliciesFile(policy: String){
@@ -87,20 +104,6 @@ class PlaybackWithEnforcement private constructor(packageName: String,
         catch(e: IOException){
             logger.error(e.message, e)
         }
-    }
-
-    companion object {
-        /**
-         * Creates a new exploration strategy instance
-         *
-         * @param packageName Package name which should be loaded from the memory. Load all APKS if not provided
-         * @param memoryTraces Trace of previous exploration (set of actions between 2 resets)
-         */
-        fun build(packageName: String, memoryTraces: List<PlaybackTrace>, widget: IWidget,
-                  api: IApi, cfg: Configuration): List<ISelectableExplorationStrategy> {
-            return listOf(PlaybackWithEnforcement(packageName, memoryTraces, widget, api, cfg))
-        }
-
     }
 }
 

@@ -1,7 +1,8 @@
-package saarland.cispa.testify.fesenda
+/*package saarland.cispa.testify.fesenda
 
-import org.droidmate.report.isEquivalentIgnoreLocation
-import org.droidmate.report.uniqueString
+import org.droidmate.exploration.strategy.playback.PlaybackTrace
+import org.droidmate.misc.isEquivalentIgnoreLocation
+import org.droidmate.misc.uniqueString
 import org.slf4j.LoggerFactory
 import saarland.cispa.testify.ExperimentConfiguration
 import saarland.cispa.testify.Reporter
@@ -66,7 +67,7 @@ object Writer {
         sb.appendln("Unseen ratio\t\t${trace.unseenRatio}")
         sb.appendln("\n\n\n")
         sb.appendln("Playback trace")
-        sb.append(trace.playbackTrace.toString())
+        sb.append(trace.playbackModel.toString())
         sb.appendln("\n\n\n")
         sb.appendln("Missing widgets")
         val unseenWidgets = trace.seenWidgets.filterNot { c -> trace.seenWidgetsBlock.any { t -> c.uniqueString == t.uniqueString } }
@@ -86,4 +87,4 @@ object Writer {
             logger.error("Failed to write log file!", e)
         }
     }
-}
+}*/
