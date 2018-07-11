@@ -72,6 +72,7 @@ object Analyzer{
 
 				// If can confirm the execution
 				if (difference.status == Status.None) {
+					println("Trace successfully reproduced Applying RWE.")
 					// Try to explore with enforcement
 					val rweStatus = exploreWithEnforcement(args, originalOutDir, widgetId, api, data)
 					println("RWE status: [$rweStatus]")
