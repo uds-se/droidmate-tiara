@@ -2,31 +2,33 @@ package saarland.cispa.testify.fesenda
 
 import org.droidmate.apis.IApi
 import org.droidmate.configuration.ConfigurationWrapper
-import org.droidmate.exploration.actions.AbstractExplorationAction
-import org.droidmate.exploration.actions.ClickExplorationAction
-import org.droidmate.exploration.actions.LongClickExplorationAction
-import org.droidmate.exploration.actions.ResetAppExplorationAction
-import org.droidmate.exploration.statemodel.Widget
+import org.droidmate.exploration.actions.*
 import org.droidmate.exploration.strategy.playback.Playback
 import org.droidmate.misc.SysCmdExecutor
+import org.droidmate.uiautomator_daemon.toUUID
 import java.io.IOException
 import java.nio.file.Files
 import java.nio.file.Path
+import java.util.*
 
 /**
  * Playback with enforcement strategy. It attempts to playback a [recorded model][modelDir] extracted from
  * and exploration log, delimited by reset actions and restricts access to an [API][api]
  * while interacting with a specific widget
  *
- * @param widget Widget which should be restricted
+ * @param widgetId Widget which should be restricted, use [emptyUUID] for actions without widget
  * @param api API which should be restricted
  * @param cfg Experiment configuration
  * @param modelDir Trace of previous exploration
  */
-class PlaybackWithEnforcement constructor(private val widget: Widget?,
-                                          private val api: IApi,
-                                          private val cfg: ConfigurationWrapper,
-                                          modelDir: Path) : Playback(modelDir) /*MemoryPlayback(packageName, traces)*/ {
+class ReplayWithEnforcement constructor(private val widgetId: UUID,
+										private val api: IApi,
+										private val cfg: ConfigurationWrapper,
+										modelDir: Path) : Playback(modelDir) /*MemoryPlayback(packageName, traces)*/ {
+	companion object {
+		@JvmStatic
+		val emptyUUID = "NONE".toUUID()
+	}
     private val cmdExecutor = SysCmdExecutor()
 
     override fun chooseAction(): AbstractExplorationAction {
@@ -65,9 +67,10 @@ class PlaybackWithEnforcement constructor(private val widget: Widget?,
 
 	private fun shouldEnablePolicy(action: AbstractExplorationAction): Boolean{
 		return when {
-			(action is ResetAppExplorationAction) -> (widget == null)
-			(action is ClickExplorationAction) -> (action.widget.uid == widget?.uid)
-			(action is LongClickExplorationAction) -> (action.widget.uid == widget?.uid)
+			(action is ResetAppExplorationAction) -> (widgetId == emptyUUID)
+			//(action is PressBackExplorationAction) -> (widgetId == emptyUUID)
+			(action is ClickExplorationAction) -> (action.widget.uid == widgetId)
+			(action is LongClickExplorationAction) -> (action.widget.uid == widgetId)
 			else -> false
 		}
 	}

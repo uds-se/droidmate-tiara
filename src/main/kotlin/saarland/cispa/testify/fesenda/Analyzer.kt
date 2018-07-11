@@ -3,8 +3,11 @@ package saarland.cispa.testify.fesenda
 import kotlinx.coroutines.experimental.runBlocking
 import org.droidmate.ExplorationAPI
 import org.droidmate.apis.IApi
+import org.droidmate.command.ExploreCommand
 import org.droidmate.configuration.ConfigurationBuilder
 import org.droidmate.exploration.ExplorationContext
+import org.droidmate.exploration.SelectorFunction
+import org.droidmate.exploration.StrategySelector
 import org.droidmate.exploration.statemodel.Widget
 import org.droidmate.exploration.strategy.ResourceManager
 import java.nio.file.FileSystems
@@ -14,20 +17,26 @@ import java.nio.file.Paths
 import java.util.*
 
 object Analyzer{
-	enum class Status(private val severity: Int){
-		None(0),
-		InformationLoss(1),
-		PossibleFunctionalityLoss(2),
-		FunctionalityLoss(3);
-
-		fun compare(other: Status): Int{
-			return severity.compareTo(other.severity)
-		}
+	enum class Status{
+		None,
+		InformationLoss,
+		PossibleFunctionalityLoss,
+		FunctionalityLoss
 	}
+
+	data class Result(val status: Status,
+					  val reproducibleRatio: Double,
+					  val originalActionable : Int = 0,
+					  val currentActionable: Int = 0,
+					  val actionableRatio: Double = 0.0,
+					  val originalObserved : Int = 0,
+					  val currentObserved: Int = 0,
+					  val observedRatio: Double = 0.0,
+					  val newRatio: Double = 0.0)
 
     private val nullUID = UUID.fromString("4cf44f4b-e036-4705-9da7-e39beea34a16")
 
-    private val nrAttemptsConfirm = 3
+    private const val nrAttemptsConfirm = 3
     private val sensitiveApiList by lazy { ResourceManager.getResourceAsStringList("sensitiveApiList.txt") }
 	private val rootOutDir: Path = Paths.get("out").toAbsolutePath()
 
@@ -59,10 +68,18 @@ object Analyzer{
 			apis.forEach { api ->
 				println("Identified widget: $widgetId with API $api")
 
+				val difference = confirm(args, originalOutDir, widgetId, api, data)
+
 				// If can confirm the execution
-				if (confirm(args, originalOutDir, widgetId, api, data))
+				if (difference.status == Status.None) {
 					// Try to explore with enforcement
-					exploreWithEnforcement(args, originalOutDir, widgetId, api)
+					val rweStatus = exploreWithEnforcement(args, originalOutDir, widgetId, api, data)
+					println("RWE status: [$rweStatus]")
+				}
+				else{
+					println("Trace could not be reproduced.")
+					println("Status: [$difference]")
+				}
 			}
 		}
     }
@@ -115,50 +132,76 @@ object Analyzer{
 		} }
 
 
-	private fun ExplorationContext.compareTo(other: ExplorationContext): Status{
+	private fun ExplorationContext.compareTo(other: ExplorationContext): Result{
 		val thisActions = this.actionTrace.getActions()
 		val otherActions = other.actionTrace.getActions()
 
-		if (thisActions.size != otherActions.size)
-			return Status.FunctionalityLoss
+		// Measure functionality loss (Critical)
+		val reproducibilityRatio = if (otherActions.isNotEmpty())
+			thisActions.size / otherActions.size.toDouble()
+		else
+			0.0
 
-		thisActions.forEachIndexed{ idx, thisAction ->
+		if (reproducibilityRatio < 1.0)
+			return Result(Status.FunctionalityLoss, reproducibilityRatio)
+
+		/*thisActions.forEachIndexed{ idx, thisAction ->
 			val otherAction = otherActions[idx]
 
 			if (otherAction.toString() != thisAction.toString())
 				return Status.FunctionalityLoss
-		}
+		}*/
 
-		val thisUniqueWidgets = this.uniqueObservedWidgets()
-		val otherUniqueWidgets = other.uniqueObservedWidgets()
+		// Observed
+		val thisObservedWidgets = this.uniqueObservedWidgets()
+		val otherObservedWidgets = other.uniqueObservedWidgets()
 
-		// Measure functionality loss
-		val foundActionableWidgets = thisUniqueWidgets
-				.map { thisWidget -> otherUniqueWidgets.any { otherWidget -> thisWidget.uid == otherWidget.uid } }
+		// Actionable
+		val thisActionableWidgets = thisObservedWidgets.filter { it.canBeActedUpon }
+		val otherActionableWidgets = otherObservedWidgets.filter { it.canBeActedUpon }
 
-		val actionableRatio = foundActionableWidgets.filter { it }.size / foundActionableWidgets.size.toDouble()
+		// Measure possible functionality loss (Severe)
+		val foundActionable = thisActionableWidgets
+				.map { thisWidget -> otherActionableWidgets.any { otherWidget -> thisWidget.uid == otherWidget.uid } }
+
+		val actionableRatio = foundActionable.filter { it }.size / foundActionable.size.toDouble()
 
 		if (actionableRatio < 1.0)
-			return Status.PossibleFunctionalityLoss
+			return Result(Status.PossibleFunctionalityLoss, reproducibilityRatio,
+					thisActionableWidgets.size, otherActionableWidgets.size, actionableRatio)
+
+
+		// Measure information loss (Minor)
+		val foundObserved = thisObservedWidgets
+				.map { thisWidget -> otherObservedWidgets.any { otherWidget -> thisWidget.uid == otherWidget.uid } }
+
+		val observedRatio = foundObserved.filter { it }.size / foundObserved.size.toDouble()
+
 
 		// Measure information loss
-		val foundUniqueWidgets = thisUniqueWidgets
-				.map { thisWidget -> otherUniqueWidgets.any { otherWidget -> thisWidget.uid == otherWidget.uid } }
+		val foundObservedWidgets = thisObservedWidgets
+				.map { thisWidget -> otherObservedWidgets.any { otherWidget -> thisWidget.uid == otherWidget.uid } }
 
-		val newWidgets = otherUniqueWidgets
-				.map { otherWidget -> !thisUniqueWidgets.any { thisWidget -> thisWidget.uid == otherWidget.uid } }
+		val newWidgets = otherObservedWidgets
+				.map { otherWidget -> !thisObservedWidgets.any { thisWidget -> thisWidget.uid == otherWidget.uid } }
 
-		val observedRatio = foundUniqueWidgets.filter { it }.size / foundUniqueWidgets.size.toDouble()
-
-		//val newRatio = newWidgets.filter { it }.size / foundUniqueWidgets.size.toDouble()
+		val newRatio = newWidgets.filter { it }.size / foundObservedWidgets.size.toDouble()
 
 		if (observedRatio < 1.0)
-			return Status.InformationLoss
+			return Result(Status.InformationLoss, reproducibilityRatio,
+					thisActionableWidgets.size, otherActionableWidgets.size, actionableRatio,
+					thisObservedWidgets.size, otherObservedWidgets.size, observedRatio,
+					newRatio)
 
-		return Status.None
+		// No loss
+		return Result(Status.None, reproducibilityRatio)
 	}
 
-	private fun confirm(args: Array<String>, originalOutDir: Path, widgetId: UUID, api: IApi, explorationContext: ExplorationContext): Boolean{
+	private fun confirm(args: Array<String>,
+						originalOutDir: Path,
+						widgetId: UUID,
+						api: IApi,
+						originalExploration: ExplorationContext): Result{
 		for (x in 0 until nrAttemptsConfirm){
 			val outDir = rootOutDir.resolve(widgetId.toString()).resolve(api.toDirName()).resolve("confirm1")
 
@@ -174,30 +217,50 @@ object Analyzer{
 
 			// Should have a single character
 			val newTestContext = explorationData.single()
+			val explDifference = originalExploration.compareTo(newTestContext)
 
-			if (explorationContext.compareTo(newTestContext).compare(Status.None) != 0)
-				return false
+			if (explDifference.status != Status.None)
+				return explDifference
 		}
 
-		return true
+		return Result(Status.None, 1.0)
 	}
 
-    private fun exploreWithEnforcement(args: Array<String>, originalOutDir: Path, widgetId: UUID, api: IApi): List<ExplorationContext>{
-		val outDir = rootOutDir.resolve(widgetId.toString()).resolve(api.toDirName()).resolve("enforce")
+    private fun exploreWithEnforcement(args: Array<String>,
+									   originalOutDir: Path,
+									   widgetId: UUID,
+									   api: IApi,
+									   originalExploration: ExplorationContext): Result{
 
-		val playbackArgs = args.toMutableList()
+		val outDir = rootOutDir.resolve(widgetId.toString()).resolve(api.toDirName()).resolve("rwe")
+		val modelDir = originalOutDir.resolve("model")
+
+		val enforcementArgs = args.toMutableList()
 				.also {
 					it.add("--Output-outputDir=$outDir")
-					it.add("--Selectors-playbackModelDir=${originalOutDir.resolve("model")}")
-					it.add("--Strategies-playback=true")
+					//it.add("--Selectors-playbackModelDir=$modelDir")
+					//it.add("--Strategies-playback=true")
 				}
 
-		val cfg = ConfigurationBuilder().build(playbackArgs.toTypedArray(), FileSystems.getDefault())
-		val explorationData = ExplorationAPI.explore(cfg)
+		val cfg = ConfigurationBuilder().build(enforcementArgs.toTypedArray(), FileSystems.getDefault())
+		val strategies = ExploreCommand.getDefaultStrategies(cfg).toMutableList().apply {
+			add(ReplayWithEnforcement(widgetId, api, cfg, modelDir))
+		}
+		val selectors = ExploreCommand.getDefaultSelectors(cfg)
+				// Remove random
+				.dropLast(1)
+				.toMutableList()
 
-		explorationData.forEach {  }
+		val rwe: SelectorFunction = { _, pool, _ ->
+			StrategySelector.logger.debug("RWE. Returning 'RWE'")
+			pool.getFirstInstanceOf(ReplayWithEnforcement::class.java)
+		}
 
-		return emptyList()
+		selectors.add(StrategySelector(selectors.size + 1, "RWE", rwe))
+
+		val explorationData = ExplorationAPI.explore(cfg, strategies, selectors)
+
+		return explorationData.single().compareTo(originalExploration)
 	}
 
     /*fun run(args: Array<String>){
