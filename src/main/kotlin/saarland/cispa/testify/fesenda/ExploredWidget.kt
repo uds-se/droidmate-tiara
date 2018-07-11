@@ -1,4 +1,4 @@
-package saarland.cispa.testify.fesenda
+/*package saarland.cispa.testify.fesenda
 
 import org.droidmate.apis.IApi
 import org.droidmate.exploration.statemodel.Widget
@@ -46,4 +46,4 @@ class ExploredWidget @JvmOverloads constructor(val widget: Widget = dummyWidget,
     companion object {
         val dummyWidget: Widget = Widget()
     }
-}
+}*/
