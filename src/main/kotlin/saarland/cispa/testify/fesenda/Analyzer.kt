@@ -1,9 +1,11 @@
 package saarland.cispa.testify.fesenda
 
+import kotlinx.coroutines.experimental.runBlocking
 import org.droidmate.ExplorationAPI
 import org.droidmate.apis.IApi
 import org.droidmate.configuration.ConfigurationBuilder
 import org.droidmate.exploration.ExplorationContext
+import org.droidmate.exploration.statemodel.Widget
 import org.droidmate.exploration.strategy.ResourceManager
 import java.nio.file.FileSystems
 import java.nio.file.Files
@@ -12,9 +14,20 @@ import java.nio.file.Paths
 import java.util.*
 
 object Analyzer{
+	enum class Status(private val severity: Int){
+		None(0),
+		InformationLoss(1),
+		PossibleFunctionalityLoss(2),
+		FunctionalityLoss(3);
+
+		fun compare(other: Status): Int{
+			return severity.compareTo(other.severity)
+		}
+	}
+
     private val nullUID = UUID.fromString("4cf44f4b-e036-4705-9da7-e39beea34a16")
 
-    //private val nrAttemptsConfirm = 3
+    private val nrAttemptsConfirm = 3
     private val sensitiveApiList by lazy { ResourceManager.getResourceAsStringList("sensitiveApiList.txt") }
 	private val rootOutDir: Path = Paths.get("out").toAbsolutePath()
 
@@ -34,16 +47,22 @@ object Analyzer{
         val explorationData = ExplorationAPI.explore(cfg)
 
         explorationData.forEach { exploredApp ->
-            runFeSenDA(exploredApp)
+            runFeSenDA(args, outDir, exploredApp)
         }
     }
 
-    private fun runFeSenDA(data : ExplorationContext){
+    private fun runFeSenDA(args: Array<String>, originalOutDir: Path, data: ExplorationContext){
+		// Get API/Widget pairs
 		val apisPerWidget = data.getApisPerWidget()
 
 		apisPerWidget.forEach { widgetId, apis ->
 			apis.forEach { api ->
 				println("Identified widget: $widgetId with API $api")
+
+				// If can confirm the execution
+				if (confirm(args, originalOutDir, widgetId, api, data))
+					// Try to explore with enforcement
+					exploreWithEnforcement(args, originalOutDir, widgetId, api)
 			}
 		}
     }
@@ -55,7 +74,7 @@ object Analyzer{
 
         exploration.indices.forEach { index ->
             val apis = exploration[index].deviceLogs.apiLogs
-					//.filter { candidate -> sensitiveApiList.any { monitored -> candidate.matches(monitored) } }
+					.filter { candidate -> sensitiveApiList.any { monitored -> candidate.matches(monitored) } }
 
             apis.forEach { api ->
                 val widgetId = exploration[index].targetWidget?.uid ?: nullUID
@@ -79,12 +98,104 @@ object Analyzer{
 		return thisValue.contains(monitored)
 	}
 
-    private fun exploreWithEnforcement(args: Array<String>, widgetId: UUID, api: IApi): List<ExplorationContext>{
-		/*val playbackArgs = mutableListOf(*args)
-		playbackArgs
+	private fun IApi.toDirName(): String {
+		return uniqueString
+				.replace(":", "_")
+				.replace("/", "_")
+				.take(256)
+	}
 
-		val cfg = ConfigurationBuilder().build(args, FileSystems.getDefault())
-		val explorationData = ExplorationAPI.explore(cfg)*/
+	private fun ExplorationContext.uniqueObservedWidgets(): Set<Widget>{
+		return mutableSetOf<Widget>().apply {
+			runBlocking {
+				getModel().getWidgets()
+						.groupBy { it.uid } // TODO we would like a mechanism to identify which widget config was the (default)
+						.forEach { add(it.value.first()) }
+			}
+		} }
+
+
+	private fun ExplorationContext.compareTo(other: ExplorationContext): Status{
+		val thisActions = this.actionTrace.getActions()
+		val otherActions = other.actionTrace.getActions()
+
+		if (thisActions.size != otherActions.size)
+			return Status.FunctionalityLoss
+
+		thisActions.forEachIndexed{ idx, thisAction ->
+			val otherAction = otherActions[idx]
+
+			if (otherAction.toString() != thisAction.toString())
+				return Status.FunctionalityLoss
+		}
+
+		val thisUniqueWidgets = this.uniqueObservedWidgets()
+		val otherUniqueWidgets = other.uniqueObservedWidgets()
+
+		// Measure functionality loss
+		val foundActionableWidgets = thisUniqueWidgets
+				.map { thisWidget -> otherUniqueWidgets.any { otherWidget -> thisWidget.uid == otherWidget.uid } }
+
+		val actionableRatio = foundActionableWidgets.filter { it }.size / foundActionableWidgets.size.toDouble()
+
+		if (actionableRatio < 1.0)
+			return Status.PossibleFunctionalityLoss
+
+		// Measure information loss
+		val foundUniqueWidgets = thisUniqueWidgets
+				.map { thisWidget -> otherUniqueWidgets.any { otherWidget -> thisWidget.uid == otherWidget.uid } }
+
+		val newWidgets = otherUniqueWidgets
+				.map { otherWidget -> !thisUniqueWidgets.any { thisWidget -> thisWidget.uid == otherWidget.uid } }
+
+		val observedRatio = foundUniqueWidgets.filter { it }.size / foundUniqueWidgets.size.toDouble()
+
+		//val newRatio = newWidgets.filter { it }.size / foundUniqueWidgets.size.toDouble()
+
+		if (observedRatio < 1.0)
+			return Status.InformationLoss
+
+		return Status.None
+	}
+
+	private fun confirm(args: Array<String>, originalOutDir: Path, widgetId: UUID, api: IApi, explorationContext: ExplorationContext): Boolean{
+		for (x in 0 until nrAttemptsConfirm){
+			val outDir = rootOutDir.resolve(widgetId.toString()).resolve(api.toDirName()).resolve("confirm1")
+
+			val playbackArgs = args.toMutableList()
+					.also {
+						it.add("--Output-outputDir=$outDir")
+						it.add("--Selectors-playbackModelDir=${originalOutDir.resolve("model")}")
+						it.add("--Strategies-playback=true")
+					}
+
+			val cfg = ConfigurationBuilder().build(playbackArgs.toTypedArray(), FileSystems.getDefault())
+			val explorationData = ExplorationAPI.explore(cfg)
+
+			// Should have a single character
+			val newTestContext = explorationData.single()
+
+			if (explorationContext.compareTo(newTestContext).compare(Status.None) != 0)
+				return false
+		}
+
+		return true
+	}
+
+    private fun exploreWithEnforcement(args: Array<String>, originalOutDir: Path, widgetId: UUID, api: IApi): List<ExplorationContext>{
+		val outDir = rootOutDir.resolve(widgetId.toString()).resolve(api.toDirName()).resolve("enforce")
+
+		val playbackArgs = args.toMutableList()
+				.also {
+					it.add("--Output-outputDir=$outDir")
+					it.add("--Selectors-playbackModelDir=${originalOutDir.resolve("model")}")
+					it.add("--Strategies-playback=true")
+				}
+
+		val cfg = ConfigurationBuilder().build(playbackArgs.toTypedArray(), FileSystems.getDefault())
+		val explorationData = ExplorationAPI.explore(cfg)
+
+		explorationData.forEach {  }
 
 		return emptyList()
 	}
