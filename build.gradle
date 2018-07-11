@@ -24,7 +24,8 @@ dependencies {
     // This dependency is supposed to come from mavenLocal().
     compile "org.droidmate:droidmate-2:1.0-RC3"
 
-    compile "org.jetbrains.kotlin:kotlin-stdlib-jdk8:$kotlin_version"
+    compile "org.jetbrains.kotlin:kotlin-stdlib:$kotlin_version"
+    compile "org.jetbrains.kotlin:kotlin-reflect:$kotlin_version"
 }
 
 compileKotlin {
@@ -32,4 +33,9 @@ compileKotlin {
 }
 compileTestKotlin {
     kotlinOptions.jvmTarget = "1.8"
+}
+kotlin {
+	experimental {
+		coroutines "enable"
+	}
 }
