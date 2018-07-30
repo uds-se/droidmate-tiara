@@ -5,7 +5,7 @@ import org.droidmate.configuration.ConfigurationWrapper
 import org.droidmate.exploration.actions.*
 import org.droidmate.exploration.strategy.playback.Playback
 import org.droidmate.misc.SysCmdExecutor
-import org.droidmate.uiautomator_daemon.toUUID
+import org.droidmate.uiautomator_daemon.guimodel.toUUID
 import java.io.IOException
 import java.nio.file.Files
 import java.nio.file.Path

@@ -4,6 +4,7 @@ import kotlinx.coroutines.experimental.runBlocking
 import org.droidmate.ExplorationAPI
 import org.droidmate.apis.IApi
 import org.droidmate.command.ExploreCommand
+import org.droidmate.configuration.ConfigProperties.Exploration.apksDir
 import org.droidmate.configuration.ConfigurationBuilder
 import org.droidmate.exploration.ExplorationContext
 import org.droidmate.exploration.SelectorFunction
@@ -51,10 +52,20 @@ object Analyzer{
 				.also {
 					it.add("--Output-outputDir=$outDir")
 				}
+		val explCfg = ExplorationAPI.config(outArgs.toTypedArray())
 
-        val cfg = ConfigurationBuilder().build(outArgs.toTypedArray(), FileSystems.getDefault())
-        val explorationData = ExplorationAPI.explore(cfg)
 
+		// Inline the apk
+		val inlineCfgArgs = arrayOf("--ExecutionMode-inline=true",
+				"--ExecutionMode-explore=false",
+				"--Exploration-apksDir=${explCfg[apksDir]}")
+		val inlineCfg = ExplorationAPI.config(inlineCfgArgs)
+		ExplorationAPI.inline(inlineCfg)
+
+		// Explore the inlined apk
+		val explorationData = ExplorationAPI.explore(explCfg)
+
+		// Run FeSenDa
         explorationData.forEach { exploredApp ->
             runFeSenDA(args, outDir, exploredApp)
         }
@@ -94,10 +105,13 @@ object Analyzer{
             val apis = exploration[index].deviceLogs.apiLogs
 					.filter { candidate -> sensitiveApiList.any { monitored -> candidate.matches(monitored) } }
 
-            apis.forEach { api ->
+            apis.distinctBy { it.uniqueString }.forEach { api ->
                 val widgetId = exploration[index].targetWidget?.uid ?: nullUID
 
-                exploredWidgets.getOrPut(widgetId) { mutableListOf() }.add(api)
+                exploredWidgets.getOrPut(widgetId) { mutableListOf() }.let {apiList ->
+					if (!apiList.any { it.uniqueString == api.uniqueString })
+						apiList.add(api)
+				}
             }
         }
 
@@ -118,8 +132,12 @@ object Analyzer{
 
 	private fun IApi.toDirName(): String {
 		return uniqueString
-				.replace(":", "_")
-				.replace("/", "_")
+				.replace(":", "")
+				.replace("/", "")
+				.replace("(", "")
+				.replace(")", "")
+				.replace("[", "")
+				.replace("]", "")
 				.take(256)
 	}
 
@@ -213,7 +231,7 @@ object Analyzer{
 						it.add("--Strategies-playback=true")
 					}
 
-			val cfg = ConfigurationBuilder().build(playbackArgs.toTypedArray(), FileSystems.getDefault())
+			val cfg = ExplorationAPI.config(playbackArgs.toTypedArray())
 			val explorationData = ExplorationAPI.explore(cfg)
 
 			// Should have a single character
