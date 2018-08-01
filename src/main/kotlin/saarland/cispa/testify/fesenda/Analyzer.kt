@@ -51,9 +51,8 @@ object Analyzer{
 		val outArgs = args.toMutableList()
 				.also {
 					it.add("--Output-outputDir=$outDir")
-				}
-		val explCfg = ExplorationAPI.config(outArgs.toTypedArray())
-
+				}.toTypedArray()
+		val explCfg = ExplorationAPI.config(outArgs)
 
 		// Inline the apk
 		val inlineCfgArgs = arrayOf("--ExecutionMode-inline=true",
@@ -132,13 +131,8 @@ object Analyzer{
 
 	private fun IApi.toDirName(): String {
 		return uniqueString
-				.replace(":", "")
-				.replace("/", "")
-				.replace("(", "")
-				.replace(")", "")
-				.replace("[", "")
-				.replace("]", "")
-				.take(256)
+				.filter { it.isLetterOrDigit() }
+				.take(255)
 	}
 
 	private fun ExplorationContext.uniqueObservedWidgets(): Set<Widget>{
