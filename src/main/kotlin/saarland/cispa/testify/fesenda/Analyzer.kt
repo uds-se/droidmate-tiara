@@ -58,8 +58,7 @@ object Analyzer{
 		val inlineCfgArgs = arrayOf("--ExecutionMode-inline=true",
 				"--ExecutionMode-explore=false",
 				"--Exploration-apksDir=${explCfg[apksDir]}")
-		val inlineCfg = ExplorationAPI.config(inlineCfgArgs)
-		ExplorationAPI.inline(inlineCfg)
+		ExplorationAPI.inline(inlineCfgArgs)
 
 		// Explore the inlined apk
 		val explorationData = ExplorationAPI.explore(explCfg)

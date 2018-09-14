@@ -1,11 +1,12 @@
 package saarland.cispa.testify.fesenda
 
+import kotlinx.coroutines.experimental.runBlocking
 import org.droidmate.apis.IApi
 import org.droidmate.configuration.ConfigurationWrapper
-import org.droidmate.exploration.actions.*
+import org.droidmate.deviceInterface.guimodel.*
+import org.droidmate.exploration.statemodel.ActionData
 import org.droidmate.exploration.strategy.playback.Playback
 import org.droidmate.misc.SysCmdExecutor
-import org.droidmate.uiautomator_daemon.guimodel.toUUID
 import java.io.IOException
 import java.nio.file.Files
 import java.nio.file.Path
@@ -31,10 +32,10 @@ class ReplayWithEnforcement constructor(private val widgetId: UUID,
 	}
     private val cmdExecutor = SysCmdExecutor()
 
-    override fun chooseAction(): AbstractExplorationAction {
+	override fun chooseAction(): ExplorationAction {
         val action = super.chooseAction()
 
-        enforcePolicies(action)
+        enforcePolicies(toExecute)
 
         return action
     }
@@ -65,32 +66,41 @@ class ReplayWithEnforcement constructor(private val widgetId: UUID,
         return "$objectClass.$methodName($params)$uri\tMock"
     }
 
-	private fun shouldEnablePolicy(action: AbstractExplorationAction): Boolean{
+	private fun shouldEnablePolicy(actionData: ActionData): Boolean{
+		val actionType = actionData.actionType
 		return when {
-			(action is ResetAppExplorationAction) -> (widgetId == emptyUUID)
+			(actionType.isLaunchApp()) -> (widgetId == emptyUUID)
 			//(action is PressBackExplorationAction) -> (widgetId == emptyUUID)
-			(action is ClickExplorationAction) -> (action.widget.uid == widgetId)
-			(action is LongClickExplorationAction) -> (action.widget.uid == widgetId)
+			(actionType.isClick()) -> (actionData.targetWidget?.uid == widgetId)
+			(actionType.isLongClick()) -> (actionData.targetWidget?.uid == widgetId)
 			else -> false
 		}
 	}
 
-	private fun shouldDisablePolicy(action: AbstractExplorationAction): Boolean{
-		return (action is ClickExplorationAction) && (!action.isEndorseRuntimePermission())
+	private fun shouldDisablePolicy(actionData: ActionData): Boolean{
+		val actionType = actionData.actionType
+
+		return if (!actionType.isClick() && !actionType.isLongClick()){
+			true
+		} else{
+			val state = runBlocking { model.getState(actionData.prevState) }!!
+			!state.isRequestRuntimePermissionDialogBox
+		}
 	}
 
-    private fun enforcePolicies(action: AbstractExplorationAction){
+    private fun enforcePolicies(actionData: ActionData){
         // If the action is runtime permission, the current policy should continue to be used
-        if (action.isEndorseRuntimePermission())
+		val state = runBlocking { model.getState(actionData.prevState) }!!
+        if (state.isRequestRuntimePermissionDialogBox)
             return
 
         // Enforcement on reset
-		if (shouldEnablePolicy(action)) {
+		if (shouldEnablePolicy(actionData)) {
             val policyStr = api.toPolicyEnforcementString()
             logger.warn("Enforcing policy $policyStr")
             writePoliciesFile(policyStr)
         }
-        else if (shouldDisablePolicy(action))
+        else if (shouldDisablePolicy(actionData))
             writePoliciesFile("")
     }
 
