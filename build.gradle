@@ -2,7 +2,7 @@ group 'saarland.cispa.testify.fesenda'
 version 'dev'
 
 buildscript {
-    ext.kotlin_version = '1.2.61'
+    ext.kotlin_version = '1.2.71'
 
     repositories {
         mavenCentral()
