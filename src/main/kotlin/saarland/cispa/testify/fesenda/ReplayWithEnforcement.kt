@@ -26,17 +26,20 @@ import java.util.UUID
  * @param cfg Experiment configuration
  * @param modelDir Trace of previous exploration
  */
-class ReplayWithEnforcement constructor(private val widgetId: UUID,
-                                        private val api: IApi,
-                                        private val cfg: ConfigurationWrapper,
-                                        modelDir: Path) : Playback(modelDir) /*MemoryPlayback(packageName, traces)*/ {
-	companion object {
-		@JvmStatic
-		val emptyUUID = "NONE".toUUID()
-	}
+class ReplayWithEnforcement constructor(
+    private val widgetId: UUID,
+    private val api: IApi,
+    private val cfg: ConfigurationWrapper,
+    modelDir: Path
+) : Playback(modelDir) {
+    companion object {
+        @JvmStatic
+        val emptyUUID = "NONE".toUUID()
+    }
+
     private val cmdExecutor = SysCmdExecutor()
 
-	override suspend fun chooseAction(): ExplorationAction {
+    override suspend fun chooseAction(): ExplorationAction {
         val action = super.chooseAction()
 
         enforcePolicies(toExecute)
@@ -60,7 +63,7 @@ class ReplayWithEnforcement constructor(private val widgetId: UUID,
      *
      * @return Api in string format
      */
-    private fun IApi.toPolicyEnforcementString(): String{
+    private fun IApi.toPolicyEnforcementString(): String {
         val params = this.paramTypes.joinToString()
         val uri = if (this.objectClass.contains("ContentResolver") && this.paramTypes.indexOf("android.net.Uri") != -1)
             "\t${this.parseUri()}"
@@ -70,57 +73,55 @@ class ReplayWithEnforcement constructor(private val widgetId: UUID,
         return "$objectClass.$methodName($params)$uri\tMock"
     }
 
-	private fun shouldEnablePolicy(actionData: Interaction): Boolean{
-		val actionType = actionData.actionType
-		return when {
-			(actionType.isLaunchApp()) -> (widgetId == emptyUUID)
-			//(action is PressBackExplorationAction) -> (widgetId == emptyUUID)
-			(actionType.isClick()) -> (actionData.targetWidget?.uid == widgetId)
-			(actionType.isLongClick()) -> (actionData.targetWidget?.uid == widgetId)
-			else -> false
-		}
-	}
+    private fun shouldEnablePolicy(actionData: Interaction): Boolean {
+        val actionType = actionData.actionType
+        return when {
+            (actionType.isLaunchApp()) -> (widgetId == emptyUUID)
+            // (action is PressBackExplorationAction) -> (widgetId == emptyUUID)
+            (actionType.isClick()) -> (actionData.targetWidget?.uid == widgetId)
+            (actionType.isLongClick()) -> (actionData.targetWidget?.uid == widgetId)
+            else -> false
+        }
+    }
 
-	private fun shouldDisablePolicy(actionData: Interaction): Boolean{
-		val actionType = actionData.actionType
+    private fun shouldDisablePolicy(actionData: Interaction): Boolean {
+        val actionType = actionData.actionType
 
-		return if (!actionType.isClick() && !actionType.isLongClick()){
-			true
-		} else{
-			val state = runBlocking { model.getState(actionData.prevState) }!!
-			!state.isRequestRuntimePermissionDialogBox
-		}
-	}
+        return if (!actionType.isClick() && !actionType.isLongClick()) {
+            true
+        } else {
+            val state = runBlocking { model.getState(actionData.prevState) }!!
+            !state.isRequestRuntimePermissionDialogBox
+        }
+    }
 
-    private fun enforcePolicies(actionData: Interaction){
+    private fun enforcePolicies(actionData: Interaction) {
         // If the action is runtime permission, the current policy should continue to be used
-		val state = runBlocking { model.getState(actionData.prevState) }!!
+        val state = runBlocking { model.getState(actionData.prevState) }!!
         if (state.isRequestRuntimePermissionDialogBox)
             return
 
         // Enforcement on reset
-		if (shouldEnablePolicy(actionData)) {
+        if (shouldEnablePolicy(actionData)) {
             val policyStr = api.toPolicyEnforcementString()
             logger.warn("Enforcing policy $policyStr")
             writePoliciesFile(policyStr)
-        }
-        else if (shouldDisablePolicy(actionData))
+        } else if (shouldDisablePolicy(actionData))
             writePoliciesFile("")
     }
 
-    private fun writePoliciesFile(policy: String){
+    private fun writePoliciesFile(policy: String) {
         try {
             val tempFile = Files.createTempFile("policies", ".droidmate")
             Files.delete(tempFile)
 
             Files.write(tempFile, policy.toByteArray())
 
-            val command = "${cfg.adbCommand} -s ${cfg.deviceSerialNumber} push $tempFile /data/local/tmp/api_policies.txt"
+            val command =
+                "${cfg.adbCommand} -s ${cfg.deviceSerialNumber} push $tempFile /data/local/tmp/api_policies.txt"
             this.cmdExecutor.execute("Sending new policy enforcement file to device", command)
-        }
-        catch(e: IOException){
+        } catch (e: IOException) {
             logger.error(e.message, e)
         }
     }
 }
-
