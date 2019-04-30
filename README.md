@@ -1,5 +1,3 @@
-# **Fe**ature **Sen**sitive **D**ata **A**ccess
+# Tightening of Resource Access (TIARA)
 
-Depends on:
-### 
-[targeted_exploration](https://projects.cispa.saarland/nataniel.borges/targeted_exploration)
+Depends on __[DroidMate-2](https://github.com/uds-se/droidmate)__
