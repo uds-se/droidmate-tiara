@@ -1,16 +1,20 @@
 package saarland.cispa.testify.fesenda
 
-import kotlinx.coroutines.experimental.runBlocking
-import org.droidmate.apis.IApi
+import kotlinx.coroutines.runBlocking
 import org.droidmate.configuration.ConfigurationWrapper
-import org.droidmate.deviceInterface.guimodel.*
-import org.droidmate.exploration.statemodel.ActionData
+import org.droidmate.device.apis.IApi
+import org.droidmate.deviceInterface.exploration.ExplorationAction
+import org.droidmate.deviceInterface.exploration.isClick
+import org.droidmate.deviceInterface.exploration.isLaunchApp
+import org.droidmate.deviceInterface.exploration.isLongClick
 import org.droidmate.exploration.strategy.playback.Playback
+import org.droidmate.explorationModel.interaction.Interaction
+import org.droidmate.explorationModel.toUUID
 import org.droidmate.misc.SysCmdExecutor
 import java.io.IOException
 import java.nio.file.Files
 import java.nio.file.Path
-import java.util.*
+import java.util.UUID
 
 /**
  * Playback with enforcement strategy. It attempts to playback a [recorded model][modelDir] extracted from
@@ -23,16 +27,16 @@ import java.util.*
  * @param modelDir Trace of previous exploration
  */
 class ReplayWithEnforcement constructor(private val widgetId: UUID,
-										private val api: IApi,
-										private val cfg: ConfigurationWrapper,
-										modelDir: Path) : Playback(modelDir) /*MemoryPlayback(packageName, traces)*/ {
+                                        private val api: IApi,
+                                        private val cfg: ConfigurationWrapper,
+                                        modelDir: Path) : Playback(modelDir) /*MemoryPlayback(packageName, traces)*/ {
 	companion object {
 		@JvmStatic
 		val emptyUUID = "NONE".toUUID()
 	}
     private val cmdExecutor = SysCmdExecutor()
 
-	override fun chooseAction(): ExplorationAction {
+	override suspend fun chooseAction(): ExplorationAction {
         val action = super.chooseAction()
 
         enforcePolicies(toExecute)
@@ -66,7 +70,7 @@ class ReplayWithEnforcement constructor(private val widgetId: UUID,
         return "$objectClass.$methodName($params)$uri\tMock"
     }
 
-	private fun shouldEnablePolicy(actionData: ActionData): Boolean{
+	private fun shouldEnablePolicy(actionData: Interaction): Boolean{
 		val actionType = actionData.actionType
 		return when {
 			(actionType.isLaunchApp()) -> (widgetId == emptyUUID)
@@ -77,7 +81,7 @@ class ReplayWithEnforcement constructor(private val widgetId: UUID,
 		}
 	}
 
-	private fun shouldDisablePolicy(actionData: ActionData): Boolean{
+	private fun shouldDisablePolicy(actionData: Interaction): Boolean{
 		val actionType = actionData.actionType
 
 		return if (!actionType.isClick() && !actionType.isLongClick()){
@@ -88,7 +92,7 @@ class ReplayWithEnforcement constructor(private val widgetId: UUID,
 		}
 	}
 
-    private fun enforcePolicies(actionData: ActionData){
+    private fun enforcePolicies(actionData: Interaction){
         // If the action is runtime permission, the current policy should continue to be used
 		val state = runBlocking { model.getState(actionData.prevState) }!!
         if (state.isRequestRuntimePermissionDialogBox)

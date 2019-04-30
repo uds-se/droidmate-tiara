@@ -2,7 +2,7 @@ group 'saarland.cispa.testify.fesenda'
 version 'dev'
 
 buildscript {
-    ext.kotlin_version = '1.2.71'
+    ext.kotlin_version = '1.3.21'
 
     repositories {
         mavenCentral()
@@ -22,7 +22,7 @@ repositories {
 
 dependencies {
     // This dependency is supposed to come from mavenLocal().
-    compile "org.droidmate:droidmate-2:1.1-SNAPSHOT"
+    compile "com.github.uds-se.droidmate:droidmate-2:1.2-RELEASE"
 
     compile "org.jetbrains.kotlin:kotlin-stdlib:$kotlin_version"
     compile "org.jetbrains.kotlin:kotlin-reflect:$kotlin_version"
@@ -33,9 +33,4 @@ compileKotlin {
 }
 compileTestKotlin {
     kotlinOptions.jvmTarget = "1.8"
-}
-kotlin {
-	experimental {
-		coroutines "enable"
-	}
 }
